@@ -128,7 +128,7 @@ int main() {
                     cout << "Collect Comment Blogger Homepages\n";
                     for (auto j = begin; j != end; ++j) {
                         string full = (*j)[1].str();
-                        if (full.find("tistory.com") == string::npos) {
+                        if (full.find(".tistory.com") == string::npos) {
                             continue;
                         }
                         regex commentBlogHomepageRegex(R"(^([^.]+))");

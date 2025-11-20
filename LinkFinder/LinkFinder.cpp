@@ -1,4 +1,4 @@
-﻿#include "../Library/Library.cpp"
+﻿#include "../Library/Library.cpp" //test
 
 using namespace std;
 namespace pubsub = ::google::cloud::pubsub;
@@ -247,8 +247,8 @@ int main() {
                             if (!headersList.empty()) {
                                 for (int j = 0; j < headersList.size(); j++) {
                                     curl_slist_free_all(headersList[j]);
-                                    headersList.clear();
                                 }
+                                headersList.clear();
                             }
 
                             cout << "\n# Valid Page Count : " << validPages.size() << endl;

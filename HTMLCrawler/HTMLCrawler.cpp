@@ -44,6 +44,7 @@ CURL* create_and_add_handle(CURLM* multi_handle, const string& link, map<CURL*, 
 
     if (!IsAllowedByRobotsGeneral(url)) {
         cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
+        delete readBuffer;
         Delay(DELAY_MILLI);
         return nullptr;
     }
@@ -167,8 +168,8 @@ int main() {
         if (!headersList.empty()) {
             for (int j = 0; j < headersList.size(); j++) {
                 curl_slist_free_all(headersList[j]);
-                headersList.clear();
             }
+            headersList.clear();
         }
 
         cout << "All links processed for this batch. Total remaining handles: " << buffers.size() << endl;
