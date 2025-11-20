@@ -13,6 +13,8 @@ unique_ptr<pubsub::Subscriber> blogProfileSubscriber;
 unique_ptr<pubsub::Subscriber> blogWritingLinkForProfileSubscriber;
 unique_ptr<pubsub::Subscriber> blogWritingLinkForContentSubscriber;
 
+vector<struct curl_slist*> headersList;
+
 CURL* create_and_add_handle(CURLM* multi_handle, const string& link, map<CURL*, string*>& buffers, map<CURL*, string>& link_data) {
     if (link.empty()) return nullptr;
 
@@ -46,7 +48,7 @@ CURL* create_and_add_handle(CURLM* multi_handle, const string& link, map<CURL*, 
         return nullptr;
     }
 
-    SetCURL(eh, readBuffer, url);
+    headersList.push_back(SetCURL(eh, readBuffer, url));
 
     curl_multi_add_handle(multi_handle, eh);
     buffers[eh] = readBuffer;
@@ -138,7 +140,7 @@ int main() {
 
                     string Body;
 
-                    Body.append("{\"body\":\"" + regex_replace(*buffer, regex("\""), "\\\"") + "\",\"blog\":\"");
+                    Body.append("{\"body\":\"" + escape_quotes(*buffer) + "\",\"blog\":\"");
                     if (!link.empty() && link[0] == 'N') {
                         Body.append("naver");
                     }
@@ -147,7 +149,6 @@ int main() {
                     }
                     Body.append("\",\"timestamp\":" + to_string(chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count()) + "}");
 
-                    delete &Body;
                     delete buffer;
                     buffers.erase(eh);
                     link_data.erase(eh);
@@ -160,6 +161,13 @@ int main() {
 
             if (links_index >= links.size() && running_handles == 0) {
                 break;
+            }
+        }
+
+        if (!headersList.empty()) {
+            for (int j = 0; j < headersList.size(); j++) {
+                curl_slist_free_all(headersList[j]);
+                headersList.clear();
             }
         }
 

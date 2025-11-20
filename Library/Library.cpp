@@ -27,7 +27,7 @@ struct RobotsRules {
 
 struct RobotsCacheEntry {
     map<string, RobotsRules> rules;
-    chrono::steady_clock::time_point lastUpdated = std::chrono::steady_clock::now() - std::chrono::hours(100);
+    chrono::steady_clock::time_point lastUpdated = chrono::steady_clock::now() - chrono::hours(100);
     bool exists = false;
 
     mutex mutex;
@@ -69,7 +69,7 @@ map<const string, const int> CRAWL_PER_SECOND_MAP = config.CRAWL_PER_SECOND_MAP;
 
 
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
-bool IsAllowedByRobotsGeneral(const std::string& fullUrl);
+bool IsAllowedByRobotsGeneral(const string& fullUrl);
 
 void Delay(int milliseconds) {
     this_thread::sleep_for(chrono::milliseconds(milliseconds));
@@ -120,9 +120,9 @@ vector<string> Subscribe(pubsub::Subscriber subscriber, const int messageCnt, co
     cout << "Listening for messages on subscription" << endl;
 
     vector<string> messages = vector<string>(messageCnt);
-    std::atomic<int> cnt{ 0 };
+    atomic<int> cnt{ 0 };
 
-    std::promise<void> shutdown_promise;
+    promise<void> shutdown_promise;
     auto shutdown_future = shutdown_promise.get_future();
 
     auto session = subscriber.Subscribe(
@@ -156,13 +156,13 @@ vector<string> Subscribe(pubsub::Subscriber subscriber, const int messageCnt, co
 
     cout << "Waiting for " << messageCnt << " messages or " << waitingTime << " seconds..." << endl;
 
-    auto status = shutdown_future.wait_for(std::chrono::seconds(waitingTime));
+    auto status = shutdown_future.wait_for(chrono::seconds(waitingTime));
 
     session.cancel();
     session.get();
     cout << "session End" << endl;
 
-    if (status == std::future_status::timeout) {
+    if (status == future_status::timeout) {
         int received_count = cnt.load();
 
         if (received_count == 0) {
@@ -242,20 +242,20 @@ void PrintProgressBar(int current, int total) {
 
 
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
-    ((std::string*)userp)->append((char*)contents, size * nmemb);
+    ((string*)userp)->append((char*)contents, size * nmemb);
     return size * nmemb;
 }
 
 
 
-std::string ExtractDomainRoot(const string fullUrl) {
+string ExtractDomainRoot(const string fullUrl) {
     if (fullUrl.empty()) return "";
 
-    std::string url = fullUrl;
-    std::string protocol;
+    string url = fullUrl;
+    string protocol;
 
-    std::string::size_type protocolEnd = url.find("://");
-    if (protocolEnd != std::string::npos) {
+    string::size_type protocolEnd = url.find("://");
+    if (protocolEnd != string::npos) {
         protocol = url.substr(0, protocolEnd + 3);
         url = url.substr(protocolEnd + 3);
     }
@@ -263,13 +263,13 @@ std::string ExtractDomainRoot(const string fullUrl) {
         return "";
     }
 
-    std::string::size_type domainEnd = url.find('/');
-    std::string domain = (domainEnd != std::string::npos) ? url.substr(0, domainEnd) : url;
+    string::size_type domainEnd = url.find('/');
+    string domain = (domainEnd != string::npos) ? url.substr(0, domainEnd) : url;
 
     return protocol + domain;
 }
 
-std::string ExtractUrlPath(const std::string& fullUrl, const std::string& domainRootUrl) {
+string ExtractUrlPath(const string& fullUrl, const string& domainRootUrl) {
     if (fullUrl.size() <= domainRootUrl.size()) {
         return "/";
     }
@@ -278,17 +278,17 @@ std::string ExtractUrlPath(const std::string& fullUrl, const std::string& domain
 
 
 
-size_t RobotsWriteCallback(void* contents, size_t size, size_t nmemb, std::string* buffer) {
+size_t RobotsWriteCallback(void* contents, size_t size, size_t nmemb, string* buffer) {
     size_t totalSize = size * nmemb;
     buffer->append((char*)contents, totalSize);
     return totalSize;
 }
 
 
-bool CheckRules(RobotsCacheEntry& entry, const std::string& userAgent, const std::string& path) {
+bool CheckRules(RobotsCacheEntry& entry, const string& userAgent, const string& path) {
     if (!entry.exists) return true;
 
-    std::vector<std::string> pathsToCheck;
+    vector<string> pathsToCheck;
 
     if (entry.rules.count(userAgent)) {
         pathsToCheck = entry.rules.at(userAgent).disallowPaths;
@@ -307,11 +307,11 @@ bool CheckRules(RobotsCacheEntry& entry, const std::string& userAgent, const std
 }
 
 
-void RefreshRobotsCache(const std::string& domainRootUrl, RobotsCacheEntry& cacheEntry) {
-    std::lock_guard<std::mutex> lock(cacheEntry.mutex);
+void RefreshRobotsCache(const string& domainRootUrl, RobotsCacheEntry& cacheEntry) {
+    lock_guard<mutex> lock(cacheEntry.mutex);
 
-    auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - cacheEntry.lastUpdated).count();
+    auto now = chrono::steady_clock::now();
+    auto elapsed = chrono::duration_cast<chrono::seconds>(now - cacheEntry.lastUpdated).count();
 
     if (elapsed < ROBOTS_CACHE_DURATION_SECONDS) {
         return;
@@ -319,8 +319,8 @@ void RefreshRobotsCache(const std::string& domainRootUrl, RobotsCacheEntry& cach
 
     cout << "Refreshing robots.txt ..\n";
 
-    std::string robotsUrl = domainRootUrl + "/robots.txt";
-    std::string robotsContent;
+    string robotsUrl = domainRootUrl + "/robots.txt";
+    string robotsContent;
 
     CURL* curl = curl_easy_init();
     if (!curl) return;
@@ -332,6 +332,8 @@ void RefreshRobotsCache(const std::string& domainRootUrl, RobotsCacheEntry& cach
     long httpCode = 0;
     CURLcode res = curl_easy_perform(curl);
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
+
+    curl_slist_free_all(headers);
     curl_easy_cleanup(curl);
 
     cacheEntry.lastUpdated = now;
@@ -339,18 +341,18 @@ void RefreshRobotsCache(const std::string& domainRootUrl, RobotsCacheEntry& cach
 
     if (res != CURLE_OK || httpCode >= 400) {
         cacheEntry.exists = false;
-        std::cerr << "Robots.txt fetch failed or 40x for [" << domainRootUrl << "]. Status Code: " << httpCode << std::endl;
+        cerr << "Robots.txt fetch failed or 40x for [" << domainRootUrl << "]. Status Code: " << httpCode << endl;
         return;
     }
 
     cacheEntry.exists = true;
-    std::stringstream ss(robotsContent);
-    std::string line;
-    std::string currentAgent = "*";
+    stringstream ss(robotsContent);
+    string line;
+    string currentAgent = "*";
 
-    while (std::getline(ss, line)) {
+    while (getline(ss, line)) {
         size_t commentPos = line.find('#');
-        if (commentPos != std::string::npos) line = line.substr(0, commentPos);
+        if (commentPos != string::npos) line = line.substr(0, commentPos);
         line.erase(0, line.find_first_not_of(" \t"));
         line.erase(line.find_last_not_of(" \t") + 1);
 
@@ -361,7 +363,7 @@ void RefreshRobotsCache(const std::string& domainRootUrl, RobotsCacheEntry& cach
             cacheEntry.rules[currentAgent];
         }
         else if (line.substr(0, 10) == "Disallow: ") {
-            std::string disallowedPath = line.substr(10);
+            string disallowedPath = line.substr(10);
             if (!disallowedPath.empty()) {
                 cacheEntry.rules[currentAgent].disallowPaths.push_back(disallowedPath);
             }
@@ -369,21 +371,21 @@ void RefreshRobotsCache(const std::string& domainRootUrl, RobotsCacheEntry& cach
     }
 }
 
-bool IsAllowedByRobotsGeneral(const std::string& fullUrl) {
+bool IsAllowedByRobotsGeneral(const string& fullUrl) {
     if (fullUrl.empty()) return true;
     
-    std::string domainRootUrl = ExtractDomainRoot(fullUrl);
-    std::string path = ExtractUrlPath(fullUrl, domainRootUrl);
+    string domainRootUrl = ExtractDomainRoot(fullUrl);
+    string path = ExtractUrlPath(fullUrl, domainRootUrl);
 
     if (domainRootUrl.empty()) return true;
 
     RobotsCacheEntry* entryPtr;
 
     {
-        std::lock_guard<std::mutex> mapLock(globalRobotsCacheMapMutex);
+        lock_guard<mutex> mapLock(globalRobotsCacheMapMutex);
 
         if (robotsCacheMap.size() >= MAX_ROBOTS_CACHE_SIZE) {
-            std::cout << "Robots cache size (" << robotsCacheMap.size() << ") exceeded limit (" << MAX_ROBOTS_CACHE_SIZE << "). Clearing all cache entries.\n";
+            cout << "Robots cache size (" << robotsCacheMap.size() << ") exceeded limit (" << MAX_ROBOTS_CACHE_SIZE << "). Clearing all cache entries.\n";
             robotsCacheMap.clear();
         }
 
@@ -393,7 +395,22 @@ bool IsAllowedByRobotsGeneral(const std::string& fullUrl) {
     RefreshRobotsCache(domainRootUrl, *entryPtr);
 
     {
-        std::lock_guard<std::mutex> entryLock(entryPtr->mutex);
+        lock_guard<mutex> entryLock(entryPtr->mutex);
         return CheckRules(*entryPtr, CRAWLER_NAME, path);
     }
+}
+
+string escape_quotes(const string input) {
+    string result;
+    result.reserve(input.size() * 1.1);
+
+    for (char c : input) {
+        if (c == '"') {
+            result.append("\\\"");
+        }
+        else {
+            result.push_back(c);
+        }
+    }
+    return result;
 }

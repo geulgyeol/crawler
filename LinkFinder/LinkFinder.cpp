@@ -247,6 +247,7 @@ int main() {
                             if (!headersList.empty()) {
                                 for (int j = 0; j < headersList.size(); j++) {
                                     curl_slist_free_all(headersList[j]);
+                                    headersList.clear();
                                 }
                             }
 
