@@ -1,44 +1,32 @@
-﻿#include "../Library/ignore.h"
-#include "../Library/Library.cpp"
+﻿#include "../Library/Library.cpp"
 
 using namespace std;
 namespace pubsub = ::google::cloud::pubsub;
 
-const std::string project_id = secrets.project_id;
-
-const std::string blogProfileTopic_id = secrets.blogProfileTopic_id;
-const std::string blogWritingLink_id = secrets.blogWritingLink_id;
-
-const std::string blogProfileSub_id = secrets.blogProfileSub_id;
-const std::string blogWritingLinkForProfileSub_id = secrets.blogWritingLinkForProfileSub_id;
-const std::string blogWritingLinkForContentSub_id = secrets.blogWritingLinkForContentSub_id;
-
-const int MAX_CONCURRENT_REQUESTS = 10;
-
-const int CRAWL_PER_SECOND = 20;
+const int CRAWL_PER_SECOND = CRAWL_PER_SECOND_MAP.at("HTMLCrawler");
 const int DELAY_MILLI = 1000 / CRAWL_PER_SECOND;
 
-std::unique_ptr<pubsub::Publisher> blogProfilePublisher;
-std::unique_ptr<pubsub::Publisher> blogWritingPublisher;
+unique_ptr<pubsub::Publisher> blogProfilePublisher;
+unique_ptr<pubsub::Publisher> blogWritingPublisher;
 
-std::unique_ptr<pubsub::Subscriber> blogProfileSubscriber;
-std::unique_ptr<pubsub::Subscriber> blogWritingLinkForProfileSubscriber;
-std::unique_ptr<pubsub::Subscriber> blogWritingLinkForContentSubscriber;
+unique_ptr<pubsub::Subscriber> blogProfileSubscriber;
+unique_ptr<pubsub::Subscriber> blogWritingLinkForProfileSubscriber;
+unique_ptr<pubsub::Subscriber> blogWritingLinkForContentSubscriber;
 
-CURL* create_and_add_handle(CURLM* multi_handle, const std::string& link, std::map<CURL*, std::string*>& buffers, std::map<CURL*, std::string>& link_data) {
+CURL* create_and_add_handle(CURLM* multi_handle, const string& link, map<CURL*, string*>& buffers, map<CURL*, string>& link_data) {
     if (link.empty()) return nullptr;
 
     CURL* eh = curl_easy_init();
     if (!eh) {
-        std::cerr << "Failed to initialize CURL easy handle." << std::endl;
+        cerr << "Failed to initialize CURL easy handle." << endl;
         return nullptr;
     }
 
     int slashIndex = link.find('/');
-    std::string profileName = link.substr(1, slashIndex - 1);
-    std::string writingNumber = link.substr(slashIndex + 1);
-    std::string url;
-    std::string* readBuffer = new std::string();
+    string profileName = link.substr(1, slashIndex - 1);
+    string writingNumber = link.substr(slashIndex + 1);
+    string url;
+    string* readBuffer = new string();
 
     if (link[0] == 'N') {
         url = "https://blog.naver.com/PostView.nhn?blogId=" + profileName + "&logNo=" + writingNumber;
@@ -69,15 +57,15 @@ CURL* create_and_add_handle(CURLM* multi_handle, const std::string& link, std::m
 
 
 int main() {
-    std::cin.tie(NULL);
-    std::ios::sync_with_stdio(false);
+    cin.tie(NULL);
+    ios::sync_with_stdio(false);
 
-    blogProfilePublisher = std::make_unique<pubsub::Publisher>(pubsub::Publisher(pubsub::MakePublisherConnection(pubsub::Topic(project_id, blogProfileTopic_id), google::cloud::Options{}.set<pubsub::MessageOrderingOption>(true))));
-    blogWritingPublisher = std::make_unique<pubsub::Publisher>(pubsub::Publisher(pubsub::MakePublisherConnection(pubsub::Topic(project_id, blogWritingLink_id), google::cloud::Options{}.set<pubsub::MessageOrderingOption>(true))));
+    blogProfilePublisher = make_unique<pubsub::Publisher>(pubsub::Publisher(pubsub::MakePublisherConnection(pubsub::Topic(PROJECT_ID, PROFILE_TOPIC_ID), google::cloud::Options{}.set<pubsub::MessageOrderingOption>(true))));
+    blogWritingPublisher = make_unique<pubsub::Publisher>(pubsub::Publisher(pubsub::MakePublisherConnection(pubsub::Topic(PROJECT_ID, WRITING_TOPIC_ID), google::cloud::Options{}.set<pubsub::MessageOrderingOption>(true))));
 
-    blogProfileSubscriber = std::make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(project_id, blogProfileSub_id))));
-    blogWritingLinkForProfileSubscriber = std::make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(project_id, blogWritingLinkForProfileSub_id))));
-    blogWritingLinkForContentSubscriber = std::make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(project_id, blogWritingLinkForContentSub_id))));
+    blogProfileSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, PROFILE_SUB_ID))));
+    blogWritingLinkForProfileSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_PROFILE_SUB_ID))));
+    blogWritingLinkForContentSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_CONTENT_SUB_ID))));
 
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
@@ -86,19 +74,19 @@ int main() {
     CURLM* multi_handle = curl_multi_init();
 
     if (!multi_handle) {
-        std::cerr << "Failed to initialize CURL multi handle." << std::endl;
+        cerr << "Failed to initialize CURL multi handle." << endl;
         curl_global_cleanup();
         return 0;
     }
 
-    std::map<CURL*, std::string*> buffers;
-    std::map<CURL*, std::string> link_data;
+    map<CURL*, string*> buffers;
+    map<CURL*, string> link_data;
 
     int links_index = 0;
     int cnt = 0;
 
     while (true) {
-        std::vector<std::string> links = Subscribe(*blogWritingLinkForContentSubscriber, 100);
+        vector<string> links = Subscribe(*blogWritingLinkForContentSubscriber, 100);
 
         if (links[0] == "/TIMEOUTED") {
             if (buffers.empty()) continue;
@@ -136,8 +124,8 @@ int main() {
                 if (msg->msg == CURLMSG_DONE) {
                     CURL* eh = msg->easy_handle;
 
-                    std::string* buffer = buffers[eh];
-                    std::string link = link_data[eh];
+                    string* buffer = buffers[eh];
+                    string link = link_data[eh];
                     long response_code;
                     curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &response_code);
 
@@ -145,19 +133,19 @@ int main() {
                         cout << "success: " << ++cnt << "\n";
                     }
                     else {
-                        std::cerr << "FAILED for [" << link << "] (Code: " << response_code << "). Error: " << curl_easy_strerror(msg->data.result) << std::endl;
+                        cerr << "FAILED for [" << link << "] (Code: " << response_code << "). Error: " << curl_easy_strerror(msg->data.result) << endl;
                     }
 
                     string Body;
 
-                    Body.append("{\"body\":\"" + regex_replace(*buffer, std::regex("\""), "\\\"") + "\",\"blog\":\"");
+                    Body.append("{\"body\":\"" + regex_replace(*buffer, regex("\""), "\\\"") + "\",\"blog\":\"");
                     if (!link.empty() && link[0] == 'N') {
                         Body.append("naver");
                     }
                     else if (!link.empty() && link[0] == 'T') {
                         Body.append("tistory");
                     }
-                    Body.append("\",\"timestamp\":" + to_string(chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count()) + "}");
+                    Body.append("\",\"timestamp\":" + to_string(chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count()) + "}");
 
                     delete &Body;
                     delete buffer;
@@ -175,7 +163,7 @@ int main() {
             }
         }
 
-        std::cout << "All links processed for this batch. Total remaining handles: " << buffers.size() << std::endl;
+        cout << "All links processed for this batch. Total remaining handles: " << buffers.size() << endl;
     }
 
     curl_multi_cleanup(multi_handle);

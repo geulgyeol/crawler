@@ -4,6 +4,7 @@
 #include "google/cloud/pubsub/publisher.h"
 #include "google/cloud/pubsub/subscriber.h"
 #include "../Library/ignore.h"
+#include "../Library/config.h"
 #include <iostream>
 #include <limits>
 #include <string>
@@ -39,18 +40,32 @@ struct RobotsCacheEntry {
 mutex globalRobotsCacheMapMutex;
 map<string, RobotsCacheEntry> robotsCacheMap;
 
-const long long ROBOTS_CACHE_DURATION_SECONDS = 3600;
-const size_t MAX_ROBOTS_CACHE_SIZE = 100;
-
 
 Secrets secrets = Secrets();
+Config config = Config();
 
 const string NID_SES = secrets.NID_SES;
 const string NID_AUT = secrets.NID_AUT;
 
-const string CRAWLER_NAME = "geulgyeol-crawler";
+const string PROJECT_ID = config.PROJECT_ID;
 
-const string USER_AGENT = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0; compatible; " + CRAWLER_NAME + "/2.0; +https://github.com/geulgyeol) Gecko/20100101 Firefox/144.0";
+const string PROFILE_TOPIC_ID = config.PROFILE_TOPIC_ID;
+const string WRITING_TOPIC_ID = config.WRITING_TOPIC_ID;
+
+const string PROFILE_SUB_ID = config.PROFILE_SUB_ID;
+const string WRITING_FOR_PROFILE_SUB_ID = config.WRITING_FOR_PROFILE_SUB_ID;
+const string WRITING_FOR_CONTENT_SUB_ID = config.WRITING_FOR_CONTENT_SUB_ID;
+
+const string CRAWLER_NAME = config.CRAWLER_NAME;
+
+const string USER_AGENT = config.USER_AGENT;
+
+const int MAX_CONCURRENT_REQUESTS = config.MAX_CONCURRENT_REQUESTS;
+
+const long long ROBOTS_CACHE_DURATION_SECONDS = config.ROBOTS_CACHE_DURATION_SECONDS;
+const size_t MAX_ROBOTS_CACHE_SIZE = config.MAX_ROBOTS_CACHE_SIZE;
+
+map<const string, const int> CRAWL_PER_SECOND_MAP = config.CRAWL_PER_SECOND_MAP;
 
 
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);

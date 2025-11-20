@@ -24,6 +24,9 @@
     <ClInclude Include="ignore.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="config.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Library.cpp">
@@ -33,6 +36,9 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="ignore.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="config.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
   </ItemGroup>
