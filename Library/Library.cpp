@@ -16,29 +16,12 @@
 #include <future>
 #include <atomic>
 
+
 using namespace std;
 namespace pubsub = ::google::cloud::pubsub;
 
-struct RobotsRules {
-    string userAgent;
-    vector<string> disallowPaths;
-};
 
-struct RobotsCacheEntry {
-    map<string, RobotsRules> rules;
-    chrono::steady_clock::time_point lastUpdated = chrono::steady_clock::now() - chrono::hours(100);
-    bool exists = false;
-
-    mutex mutex;
-
-    RobotsCacheEntry(const RobotsCacheEntry&) = delete;
-    RobotsCacheEntry& operator=(const RobotsCacheEntry&) = delete;
-    RobotsCacheEntry() = default;
-};
-
-mutex globalRobotsCacheMapMutex;
-map<string, RobotsCacheEntry> robotsCacheMap;
-
+const string TIMEOUTED = "/TIMEOUTED";
 
 Config config = Config();
 
@@ -63,15 +46,33 @@ const size_t MAX_ROBOTS_CACHE_SIZE = config.MAX_ROBOTS_CACHE_SIZE;
 map<const string, const int> CRAWL_PER_SECOND_MAP = config.CRAWL_PER_SECOND_MAP;
 
 
+struct RobotsRules {
+    string userAgent;
+    vector<string> disallowPaths;
+};
+
+struct RobotsCacheEntry {
+    map<string, RobotsRules> rules;
+    chrono::steady_clock::time_point lastUpdated = chrono::steady_clock::now() - chrono::hours(100);
+    bool exists = false;
+
+    mutex mutex;
+
+    RobotsCacheEntry(const RobotsCacheEntry&) = delete;
+    RobotsCacheEntry& operator=(const RobotsCacheEntry&) = delete;
+    RobotsCacheEntry() = default;
+};
+
+mutex globalRobotsCacheMapMutex;
+map<string, RobotsCacheEntry> robotsCacheMap;
+
+
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
 bool IsAllowedByRobotsGeneral(const string& fullUrl);
 
 void Delay(int milliseconds) {
     this_thread::sleep_for(chrono::milliseconds(milliseconds));
 }
-
-
-
 
 void Publish(pubsub::Publisher publisher, vector<string> contents, string orderingKey = "") try {
     vector<google::cloud::future<google::cloud::StatusOr<string>>> futures;
@@ -161,8 +162,8 @@ vector<string> Subscribe(pubsub::Subscriber subscriber, const int messageCnt, co
         int received_count = cnt.load();
 
         if (received_count == 0) {
-            cout << "Timeout: No messages received. Returning first index to '/TIMEOUTED'.\n\n";
-            messages[0] = "/TIMEOUTED";
+            cout << "Timeout: No messages received. Returning first index to '" + TIMEOUTED + "'.\n\n";
+            messages[0] = TIMEOUTED;
         }
         else {
             cout << "Timeout: Only " << received_count << " messages received. Returning partial result.\n";

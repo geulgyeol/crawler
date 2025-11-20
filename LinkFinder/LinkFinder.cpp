@@ -36,7 +36,7 @@ int main() {
     while (true) {
         vector<string> links = Subscribe(*blogProfileSubscriber, 10);
 
-        if (links[0] == "/TIMEOUTED") {
+        if (links[0] == TIMEOUTED) {
             continue;
         }
 

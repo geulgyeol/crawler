@@ -91,7 +91,7 @@ int main() {
     while (true) {
         vector<string> links = Subscribe(*blogWritingLinkForContentSubscriber, 100);
 
-        if (links[0] == "/TIMEOUTED") {
+        if (links[0] == TIMEOUTED) {
             if (buffers.empty()) continue;
             links.clear();
             links_index = 0;
