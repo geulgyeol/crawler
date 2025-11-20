@@ -3,7 +3,6 @@
 #include "framework.h"
 #include "google/cloud/pubsub/publisher.h"
 #include "google/cloud/pubsub/subscriber.h"
-#include "../Library/ignore.h"
 #include "../Library/config.h"
 #include <iostream>
 #include <limits>
@@ -41,11 +40,7 @@ mutex globalRobotsCacheMapMutex;
 map<string, RobotsCacheEntry> robotsCacheMap;
 
 
-Secrets secrets = Secrets();
 Config config = Config();
-
-const string NID_SES = secrets.NID_SES;
-const string NID_AUT = secrets.NID_AUT;
 
 const string PROJECT_ID = config.PROJECT_ID;
 
@@ -186,7 +181,7 @@ catch (google::cloud::Status const& status) {
 
 
 
-struct curl_slist* SetCURL(CURL* curl, string* readBuffer, string url, string referer = "", string range = "", bool needNID = false) {    
+struct curl_slist* SetCURL(CURL* curl, string* readBuffer, string url, string referer = "", string range = "") {    
     if (readBuffer) {
         readBuffer->clear();
     }
@@ -209,11 +204,6 @@ struct curl_slist* SetCURL(CURL* curl, string* readBuffer, string url, string re
 
     if (range != "") {
         curl_easy_setopt(curl, CURLOPT_RANGE, range.c_str());
-    }
-
-    if (needNID) {
-        string str = "Cookie: NID_SES=" + NID_SES + "; NID_AUT=" + NID_AUT;
-        headers = curl_slist_append(headers, str.c_str());
     }
 
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);

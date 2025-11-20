@@ -69,7 +69,7 @@ int main() {
                         continue;
                     }
 
-                    struct curl_slist* headers = SetCURL(curl, &readBuffer, url, referer, "", true);
+                    struct curl_slist* headers = SetCURL(curl, &readBuffer, url, referer, "");
 
                     CURLcode res = curl_easy_perform(curl);
                     curl_slist_free_all(headers);

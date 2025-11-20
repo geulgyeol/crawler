@@ -167,12 +167,10 @@
   <ItemGroup>
     <ClInclude Include="config.h" />
     <ClInclude Include="framework.h" />
-    <ClInclude Include="ignore.h" />
     <ClInclude Include="pch.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="config.cpp" />
-    <ClCompile Include="ignore.cpp" />
     <ClCompile Include="Library.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
