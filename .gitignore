@@ -362,4 +362,5 @@ MigrationBackup/
 .ionide/
 
 # Fody - auto-generated XML schema
-FodyWeavers.xsd_codeql_detected_source_root
+FodyWeavers.xsd
+_codeql_detected_source_root
