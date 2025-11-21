@@ -78,11 +78,18 @@ The workflow:
 3. Sets up Docker Buildx
 4. Logs in to GitHub Container Registry using:
    - Username: `${{ github.actor }}` (the user who triggered the workflow)
-   - Password: `${{ secrets.GH_TOKEN }}` secret
+   - Password: `${{ secrets.GH_TOKEN }}` secret (must be configured in repository secrets with `packages:write` permission)
 5. Automatically generates image name from repository: `${{ github.repository }}`
 6. Builds images for both ARM64 and AMD64
 7. Pushes images to ghcr.io (except for PRs)
 8. Uses GitHub Actions cache for faster subsequent builds
+
+### Setup Requirements
+
+To use this workflow, you need to:
+1. Create a Personal Access Token (PAT) with `write:packages` permission
+2. Add it to your repository secrets as `GH_TOKEN`
+3. Ensure the workflow has `packages: write` permission (already configured)
 
 ## Architecture
 

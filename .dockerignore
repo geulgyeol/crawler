@@ -22,10 +22,10 @@ out/
 bin/
 obj/
 
-# Documentation
-*.md
-README*
+# Documentation (keep DOCKER.md if needed in container)
+README.md
 LICENSE
+*.txt
 
 # CI/CD
 .github/
