@@ -13,6 +13,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     libssl-dev \
     nlohmann-json3-dev \
     curl \
+    zip \
+    unzip \
+    tar \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
