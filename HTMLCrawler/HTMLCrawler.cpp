@@ -3,8 +3,10 @@
 using namespace std;
 namespace pubsub = ::google::cloud::pubsub;
 
-const int CRAWL_PER_SECOND = CRAWL_PER_SECOND_MAP.at("HTMLCrawler");
-const int DELAY_MILLI = 1000 / CRAWL_PER_SECOND;
+const int CRAWL_PER_SECOND_N = CRAWL_PER_SECOND_MAP.at("HTMLCrawler_N");
+const int CRAWL_PER_SECOND_T = CRAWL_PER_SECOND_MAP.at("HTMLCrawler_T");
+const int DELAY_MILLI_N = 1000 / CRAWL_PER_SECOND_N;
+const int DELAY_MILLI_T = 1000 / CRAWL_PER_SECOND_T;
 
 unique_ptr<pubsub::Publisher> blogProfilePublisher;
 unique_ptr<pubsub::Publisher> blogWritingPublisher;
@@ -15,7 +17,7 @@ unique_ptr<pubsub::Subscriber> blogWritingLinkForContentSubscriber;
 
 vector<struct curl_slist*> headersList;
 
-CURL* create_and_add_handle(CURLM* multi_handle, const string& link, map<CURL*, string*>& buffers, map<CURL*, string>& link_data) {
+CURL* CreateHandle(CURLM* multi_handle, const string& link, map<CURL*, string*>& buffers, map<CURL*, string>& link_data) {
     if (link.empty()) return nullptr;
 
     CURL* eh = curl_easy_init();
@@ -45,7 +47,7 @@ CURL* create_and_add_handle(CURLM* multi_handle, const string& link, map<CURL*, 
     if (!IsAllowedByRobotsGeneral(url)) {
         cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
         delete readBuffer;
-        Delay(DELAY_MILLI);
+        Delay(link[0], DELAY_MILLI_N, DELAY_MILLI_T);
         return nullptr;
     }
 
@@ -62,6 +64,8 @@ CURL* create_and_add_handle(CURLM* multi_handle, const string& link, map<CURL*, 
 int main() {
     cin.tie(NULL);
     ios::sync_with_stdio(false);
+
+    cout << DELAY_MILLI_N << endl;
 
     blogProfilePublisher = make_unique<pubsub::Publisher>(pubsub::Publisher(pubsub::MakePublisherConnection(pubsub::Topic(PROJECT_ID, PROFILE_TOPIC_ID), google::cloud::Options{}.set<pubsub::MessageOrderingOption>(true))));
     blogWritingPublisher = make_unique<pubsub::Publisher>(pubsub::Publisher(pubsub::MakePublisherConnection(pubsub::Topic(PROJECT_ID, WRITING_TOPIC_ID), google::cloud::Options{}.set<pubsub::MessageOrderingOption>(true))));
@@ -105,7 +109,7 @@ int main() {
         while (links_index < links.size() || running_handles > 0) {
 
             while (running_handles < MAX_CONCURRENT_REQUESTS && links_index < links.size()) {
-                CURL* eh = create_and_add_handle(multi_handle, links[links_index], buffers, link_data);
+                CURL* eh = CreateHandle(multi_handle, links[links_index], buffers, link_data);
                 if (eh) {
                     curl_multi_perform(multi_handle, &running_handles);
                 }
@@ -141,7 +145,7 @@ int main() {
 
                     string Body;
 
-                    Body.append("{\"body\":\"" + escape_quotes(*buffer) + "\",\"blog\":\"");
+                    Body.append("{\"body\":\"" + EscapeQuotes(*buffer) + "\",\"blog\":\"");
                     if (!link.empty() && link[0] == 'N') {
                         Body.append("naver");
                     }
@@ -156,7 +160,7 @@ int main() {
                     curl_multi_remove_handle(multi_handle, eh);
                     curl_easy_cleanup(eh);
 
-                    Delay(DELAY_MILLI);
+                    Delay(link[0], DELAY_MILLI_N, DELAY_MILLI_T);
                 }
             }
 

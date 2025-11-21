@@ -17,7 +17,10 @@ Config::Config() :
     MAX_ROBOTS_CACHE_SIZE(100)
 
 {
-    CRAWL_PER_SECOND_MAP.insert({ "LinkFinder", 10 });
-    CRAWL_PER_SECOND_MAP.insert({ "ProfileFinder", 4 });
-    CRAWL_PER_SECOND_MAP.insert({ "HTMLCrawler", 10 });
+    CRAWL_PER_SECOND_MAP.insert({ "LinkFinder_N", 4 });
+    CRAWL_PER_SECOND_MAP.insert({ "LinkFinder_T", 20 });
+    CRAWL_PER_SECOND_MAP.insert({ "ProfileFinder_N", 4 });
+    CRAWL_PER_SECOND_MAP.insert({ "ProfileFinder_T", 4 });
+    CRAWL_PER_SECOND_MAP.insert({ "HTMLCrawler_N", 10 });
+    CRAWL_PER_SECOND_MAP.insert({ "HTMLCrawler_T", 20 });
 }

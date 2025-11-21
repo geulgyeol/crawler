@@ -74,6 +74,18 @@ void Delay(int milliseconds) {
     this_thread::sleep_for(chrono::milliseconds(milliseconds));
 }
 
+void Delay(char blogType, const int DELAY_MILLI_N, const int DELAY_MILLI_T) {
+    if (blogType == 'N') {
+        Delay(DELAY_MILLI_N);
+    }
+    else if (blogType == 'T') {
+        Delay(DELAY_MILLI_T);
+    }
+    else {
+        Delay(max(DELAY_MILLI_N, DELAY_MILLI_T));
+    }
+}
+
 void Publish(pubsub::Publisher publisher, vector<string> contents, string orderingKey = "") try {
     vector<google::cloud::future<google::cloud::StatusOr<string>>> futures;
 
@@ -391,7 +403,7 @@ bool IsAllowedByRobotsGeneral(const string& fullUrl) {
     }
 }
 
-string escape_quotes(const string input) {
+string EscapeQuotes(const string input) {
     string result;
     result.reserve(input.size() * 1.1);
 

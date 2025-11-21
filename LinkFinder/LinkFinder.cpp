@@ -3,8 +3,10 @@
 using namespace std;
 namespace pubsub = ::google::cloud::pubsub;
 
-const int CRAWL_PER_SECOND = CRAWL_PER_SECOND_MAP.at("LinkFinder");
-const int DELAY_MILLI = 1000 / CRAWL_PER_SECOND;
+const int CRAWL_PER_SECOND_N = CRAWL_PER_SECOND_MAP.at("LinkFinder_N");
+const int CRAWL_PER_SECOND_T = CRAWL_PER_SECOND_MAP.at("LinkFinder_T");
+const int DELAY_MILLI_N = 1000 / CRAWL_PER_SECOND_N;
+const int DELAY_MILLI_T = 1000 / CRAWL_PER_SECOND_T;
 
 unique_ptr<pubsub::Publisher> blogProfilePublisher;
 unique_ptr<pubsub::Publisher> blogWritingPublisher;
@@ -67,7 +69,6 @@ int main() {
 
                         if (!IsAllowedByRobotsGeneral(url)) {
                             cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
-                            Delay(DELAY_MILLI);
                             break;
                         }
 
@@ -113,19 +114,19 @@ int main() {
                         }
 
                         currentPage++;
-                        Delay(DELAY_MILLI);
+                        Delay(DELAY_MILLI_N);
                     }
 
                     printf("\n");
                     Publish(*blogWritingPublisher, validPages, "test");
-                    Delay(DELAY_MILLI);
+                    Delay(DELAY_MILLI_N);
                 }
                 else if (link[0] == 'T') {
                     string url = "https://" + link.substr(1) + ".tistory.com/rss";
 
                     if (!IsAllowedByRobotsGeneral(url)) {
                         cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
-                        Delay(DELAY_MILLI);
+                        Delay(DELAY_MILLI_T);
                         continue;
                     }
 
@@ -161,7 +162,7 @@ int main() {
                                 
                                 if (!IsAllowedByRobotsGeneral(url)) {
                                     cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
-                                    Delay(DELAY_MILLI);
+                                    Delay(DELAY_MILLI_T);
                                     currentIndex--;
                                     continue;
                                 }
@@ -228,7 +229,7 @@ int main() {
                                             
                                             if (!IsAllowedByRobotsGeneral(url)) {
                                                 cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
-                                                Delay(DELAY_MILLI);
+                                                Delay(DELAY_MILLI_T);
                                                 currentIndex--;
                                                 continue;
                                             }
@@ -238,7 +239,7 @@ int main() {
                                             activeTransfers++;
                                             currentIndex--;
 
-                                            Delay(DELAY_MILLI);
+                                            Delay(DELAY_MILLI_T);
                                         }
                                     }
                                 }
