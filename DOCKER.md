@@ -41,7 +41,9 @@ The repository is configured with GitHub Actions to automatically build and push
 
 ### Available Images
 
-Images are published to: `ghcr.io/devngho/crawler`
+Images are published to: `ghcr.io/geulgyeol/crawler` (or `ghcr.io/<owner>/<repo>` based on the repository)
+
+The image name is automatically derived from the repository using `${{ github.repository }}`.
 
 Tags:
 - `latest` - Latest build from the default branch
@@ -53,13 +55,13 @@ Tags:
 
 ```bash
 # Pull the latest image (supports both ARM64 and AMD64)
-docker pull ghcr.io/devngho/crawler:latest
+docker pull ghcr.io/geulgyeol/crawler:latest
 
 # Pull a specific version
-docker pull ghcr.io/devngho/crawler:v1.0.0
+docker pull ghcr.io/geulgyeol/crawler:v1.0.0
 
 # Run from registry
-docker run --rm ghcr.io/devngho/crawler:latest
+docker run --rm ghcr.io/geulgyeol/crawler:latest
 ```
 
 ## GitHub Actions Workflow
@@ -74,10 +76,13 @@ The workflow:
 1. Checks out the code
 2. Sets up QEMU for multi-architecture builds
 3. Sets up Docker Buildx
-4. Logs in to GitHub Container Registry using the `GH_SECRET` secret
-5. Builds images for both ARM64 and AMD64
-6. Pushes images to ghcr.io (except for PRs)
-7. Uses GitHub Actions cache for faster subsequent builds
+4. Logs in to GitHub Container Registry using:
+   - Username: `${{ github.actor }}` (the user who triggered the workflow)
+   - Password: `${{ secrets.GH_TOKEN }}` secret
+5. Automatically generates image name from repository: `${{ github.repository }}`
+6. Builds images for both ARM64 and AMD64
+7. Pushes images to ghcr.io (except for PRs)
+8. Uses GitHub Actions cache for faster subsequent builds
 
 ## Architecture
 
