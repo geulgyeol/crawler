@@ -1,0 +1,40 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Visual Studio files
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+.vs/
+Debug/
+Release/
+x64/
+Win32/
+*.suo
+*.user
+
+# Build artifacts
+build/
+out/
+bin/
+obj/
+
+# Documentation
+*.md
+README*
+LICENSE
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

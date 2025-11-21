@@ -33,14 +33,16 @@ COPY . .
 # Create CMakeLists.txt for building the applications
 RUN cat > CMakeLists.txt << 'EOF'
 cmake_minimum_required(VERSION 3.15)
-project(Crawler)
+project(Crawler CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Find required packages
 find_package(CURL REQUIRED)
 find_package(google_cloud_cpp_pubsub REQUIRED)
+find_package(Threads REQUIRED)
 
 # Library
 add_library(CrawlerLib STATIC
@@ -56,7 +58,13 @@ target_include_directories(CrawlerLib PUBLIC
 target_link_libraries(CrawlerLib PUBLIC
     CURL::libcurl
     google-cloud-cpp::pubsub
+    Threads::Threads
 )
+
+# Add compiler definitions for non-Windows platforms
+if(NOT WIN32)
+    target_compile_definitions(CrawlerLib PUBLIC UNIX_BUILD)
+endif()
 
 # LinkFinder
 add_executable(LinkFinder LinkFinder/LinkFinder.cpp)
