@@ -1,4 +1,4 @@
-﻿#include "../Library/Library.cpp"
+#include "../Library/Library.cpp"
 
 using namespace std;
 namespace pubsub = ::google::cloud::pubsub;

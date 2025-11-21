@@ -1,4 +1,4 @@
-﻿#include "../Library/Library.cpp"
+#include "../Library/Library.cpp"
 
 using namespace std;
 namespace pubsub = ::google::cloud::pubsub;
@@ -159,14 +159,14 @@ int main() {
                                 CURL* eh = curl_easy_init();
                                 string* buffer = new string();
                                 string url = "https://" + link.substr(1) + ".tistory.com/" + to_string(currentIndex);
-                                
+
                                 if (!IsAllowedByRobotsGeneral(url)) {
                                     cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
                                     Delay(DELAY_MILLI_T);
                                     currentIndex--;
                                     continue;
                                 }
-                                
+
                                 headersList.push_back(SetCURL(eh, buffer, url, "", "0-256"));
                                 curl_multi_add_handle(multi_handle, eh);
                                 easy_handles.push_back(eh);
@@ -226,7 +226,7 @@ int main() {
                                             CURL* eh = curl_easy_init();
                                             string* buffer = new string();
                                             string url = "https://" + link.substr(1) + ".tistory.com/" + to_string(currentIndex);
-                                            
+
                                             if (!IsAllowedByRobotsGeneral(url)) {
                                                 cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
                                                 Delay(DELAY_MILLI_T);
@@ -244,7 +244,7 @@ int main() {
                                     }
                                 }
                             }
-                            
+
                             if (!headersList.empty()) {
                                 for (int j = 0; j < headersList.size(); j++) {
                                     curl_slist_free_all(headersList[j]);

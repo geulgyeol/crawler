@@ -1,4 +1,4 @@
-﻿#include "../Library/Library.cpp"
+#include "../Library/Library.cpp"
 
 using namespace std;
 namespace pubsub = ::google::cloud::pubsub;
@@ -159,6 +159,6 @@ int main() {
         curl_global_cleanup();
     }
 
-    
+
     return 0;
 }
