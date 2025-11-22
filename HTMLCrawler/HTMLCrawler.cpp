@@ -1,5 +1,9 @@
 #include "../Library/Library.cpp"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 using namespace std;
 namespace pubsub = ::google::cloud::pubsub;
 
@@ -72,8 +76,10 @@ int main() {
     blogWritingLinkForProfileSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_PROFILE_SUB_ID))));
     blogWritingLinkForContentSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_CONTENT_SUB_ID))));
 
+#ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
+#endif
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
     CURLM* multi_handle = curl_multi_init();

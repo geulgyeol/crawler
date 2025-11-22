@@ -1,5 +1,9 @@
 #include "../Library/Library.cpp"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 using namespace std;
 namespace pubsub = ::google::cloud::pubsub;
 
@@ -33,8 +37,10 @@ int main() {
     //Publish(*blogWritingPublisher, { "Tnelastory/35" }, "test");
     //Publish(*blogWritingPublisher, { "Tnelastory/37" }, "test");
 
+#ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
+#endif
 
     map<string, bool> visited;
 
