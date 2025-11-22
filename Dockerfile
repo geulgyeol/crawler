@@ -1,5 +1,10 @@
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+ARG TARGETARCH
+ARG TARGETOS
+
 # Builder stage
-FROM alpine:3.20 AS builder
+FROM --platform=${BUILDPLATFORM} alpine:3.20 AS builder
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -46,7 +51,7 @@ RUN mkdir -p /opt/crawler/bin \
     && cp build/ProfileFinder/ProfileFinder /opt/crawler/bin/
 
 # Runtime stage (Alpine)
-FROM alpine:3.20 AS runner
+FROM --platform=${TARGETPLATFORM} alpine:3.20 AS runner
 
 RUN apk add --no-cache \
     ca-certificates \
