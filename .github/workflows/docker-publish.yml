@@ -15,63 +15,9 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  BUILD_TYPE: Release
-  VCPKG_DEFAULT_TRIPLET: x64-linux
-  VCPKG_ROOT: $HOME/vcpkg
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Cache vcpkg and artifacts
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ env.VCPKG_ROOT }}
-            $HOME/.cache/vcpkg/archives
-          key: vcpkg-${{ runner.os }}-${{ env.VCPKG_DEFAULT_TRIPLET }}-${{ hashFiles('**/CMakeLists.txt', 'CMakePresets.json') }}
-          restore-keys: |
-            vcpkg-${{ runner.os }}-${{ env.VCPKG_DEFAULT_TRIPLET }}-
-
-      - name: Install build tooling
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            cmake \
-            ninja-build \
-            build-essential \
-            pkg-config \
-            git \
-            curl \
-            zip \
-            unzip
-
-      - name: Install vcpkg (per Pub/Sub guide)
-        run: |
-          echo "VCPKG_ROOT=${VCPKG_ROOT}" >> $GITHUB_ENV
-          if [ ! -d "$VCPKG_ROOT/.git" ]; then
-            git -C $HOME clone https://github.com/microsoft/vcpkg.git
-          else
-            git -C "$VCPKG_ROOT" pull --ff-only
-          fi
-          env VCPKG_ROOT=${VCPKG_ROOT} ${VCPKG_ROOT}/bootstrap-vcpkg.sh -disableMetrics
-
-      - name: Configure CMake
-        run: |
-          $VCPKG_ROOT/vcpkg install google-cloud-cpp[pubsub]:${{ env.VCPKG_DEFAULT_TRIPLET }} curl:${{ env.VCPKG_DEFAULT_TRIPLET }} --clean-after-build
-          cmake -S . -B cmake-out -G Ninja \
-            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
-            -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
-            -DVCPKG_TARGET_TRIPLET=${{ env.VCPKG_DEFAULT_TRIPLET }}
-
-      - name: Build
-        run: cmake --build cmake-out --config ${{ env.BUILD_TYPE }} -- -j $(nproc)
-
   build-and-push:
-    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: read
