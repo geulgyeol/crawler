@@ -4,26 +4,26 @@ ARG TARGETARCH
 ARG TARGETOS
 
 # Builder stage
-FROM --platform=${BUILDPLATFORM} alpine:3.20 AS builder
+FROM --platform=${BUILDPLATFORM} debian:bookworm-slim AS builder
 
 # Install build dependencies
-RUN apk add --no-cache \
-    bash \
-    build-base \
-    cmake \
-    ninja \
-    pkgconfig \
-    git \
-    curl \
-    ca-certificates \
-    openssl-dev \
-    tar \
-    zip \
-    unzip
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+       build-essential \
+       ca-certificates \
+       cmake \
+       git \
+       curl \
+       ninja-build \
+       pkg-config \
+       zip \
+       unzip \
+       tar \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install vcpkg for dependencies (musl triplet for Alpine)
+# Install vcpkg for dependencies (glibc triplet)
 ENV VCPKG_ROOT=/opt/vcpkg \
-    VCPKG_DEFAULT_TRIPLET=x64-linux-musl \
+    VCPKG_DEFAULT_TRIPLET=x64-linux \
     VCPKG_BINARY_SOURCES="clear;default" \
     VCPKG_FEATURE_FLAGS=manifests
 
@@ -31,7 +31,7 @@ RUN git clone https://github.com/microsoft/vcpkg.git ${VCPKG_ROOT} \
     && ${VCPKG_ROOT}/bootstrap-vcpkg.sh -disableMetrics
 
 # Install required libraries
-RUN ${VCPKG_ROOT}/vcpkg install google-cloud-cpp[pubsub]:x64-linux-musl curl:x64-linux-musl --clean-after-build
+RUN ${VCPKG_ROOT}/vcpkg install google-cloud-cpp[pubsub]:x64-linux curl:x64-linux --clean-after-build
 
 WORKDIR /src
 
@@ -50,12 +50,14 @@ RUN mkdir -p /opt/crawler/bin \
     && cp build/LinkFinder/LinkFinder /opt/crawler/bin/ \
     && cp build/ProfileFinder/ProfileFinder /opt/crawler/bin/
 
-# Runtime stage (Alpine)
-FROM --platform=${TARGETPLATFORM} alpine:3.20 AS runner
+# Runtime stage (Debian slim)
+FROM --platform=${TARGETPLATFORM} debian:bookworm-slim AS runner
 
-RUN apk add --no-cache \
-    ca-certificates \
-    libstdc++
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+       ca-certificates \
+       libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
