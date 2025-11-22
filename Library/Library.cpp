@@ -56,7 +56,7 @@ struct RobotsCacheEntry {
     chrono::steady_clock::time_point lastUpdated = chrono::steady_clock::now() - chrono::hours(100);
     bool exists = false;
 
-    mutex mutex;
+    mutex cacheMutex;
 
     RobotsCacheEntry(const RobotsCacheEntry&) = delete;
     RobotsCacheEntry& operator=(const RobotsCacheEntry&) = delete;
@@ -311,7 +311,7 @@ bool CheckRules(RobotsCacheEntry& entry, const string& userAgent, const string& 
 
 
 void RefreshRobotsCache(const string& domainRootUrl, RobotsCacheEntry& cacheEntry) {
-    lock_guard<mutex> lock(cacheEntry.mutex);
+    lock_guard<mutex> lock(cacheEntry.cacheMutex);
 
     auto now = chrono::steady_clock::now();
     auto elapsed = chrono::duration_cast<chrono::seconds>(now - cacheEntry.lastUpdated).count();
@@ -398,7 +398,7 @@ bool IsAllowedByRobotsGeneral(const string& fullUrl) {
     RefreshRobotsCache(domainRootUrl, *entryPtr);
 
     {
-        lock_guard<mutex> entryLock(entryPtr->mutex);
+        lock_guard<mutex> entryLock(entryPtr->cacheMutex);
         return CheckRules(*entryPtr, CRAWLER_NAME, path);
     }
 }
