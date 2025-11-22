@@ -17,6 +17,7 @@ env:
   IMAGE_NAME: ${{ github.repository }}
   BUILD_TYPE: Release
   VCPKG_DEFAULT_TRIPLET: x64-linux
+  VCPKG_ROOT: $HOME/vcpkg
 
 jobs:
   build:
@@ -24,6 +25,16 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Cache vcpkg and artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.VCPKG_ROOT }}
+            $HOME/.cache/vcpkg/archives
+          key: vcpkg-${{ runner.os }}-${{ env.VCPKG_DEFAULT_TRIPLET }}-${{ hashFiles('**/CMakeLists.txt', 'CMakePresets.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-${{ env.VCPKG_DEFAULT_TRIPLET }}-
 
       - name: Install build tooling
         run: |
@@ -40,9 +51,13 @@ jobs:
 
       - name: Install vcpkg (per Pub/Sub guide)
         run: |
-          echo "VCPKG_ROOT=$HOME/vcpkg" >> $GITHUB_ENV
-          git -C $HOME clone https://github.com/microsoft/vcpkg.git
-          env VCPKG_ROOT=$HOME/vcpkg $HOME/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+          echo "VCPKG_ROOT=${VCPKG_ROOT}" >> $GITHUB_ENV
+          if [ ! -d "$VCPKG_ROOT/.git" ]; then
+            git -C $HOME clone https://github.com/microsoft/vcpkg.git
+          else
+            git -C "$VCPKG_ROOT" pull --ff-only
+          fi
+          env VCPKG_ROOT=${VCPKG_ROOT} ${VCPKG_ROOT}/bootstrap-vcpkg.sh -disableMetrics
 
       - name: Configure CMake
         run: |
