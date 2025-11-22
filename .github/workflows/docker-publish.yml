@@ -16,7 +16,6 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   BUILD_TYPE: Release
-  VCPKG_ROOT: ${{ runner.home }}/vcpkg
   VCPKG_DEFAULT_TRIPLET: x64-linux
 
 jobs:
@@ -41,15 +40,16 @@ jobs:
 
       - name: Install vcpkg (per Pub/Sub guide)
         run: |
+          echo "VCPKG_ROOT=$HOME/vcpkg" >> $GITHUB_ENV
           git -C $HOME clone https://github.com/microsoft/vcpkg.git
           env VCPKG_ROOT=$HOME/vcpkg $HOME/vcpkg/bootstrap-vcpkg.sh -disableMetrics
 
       - name: Configure CMake
         run: |
-          $HOME/vcpkg/vcpkg install google-cloud-cpp[pubsub]:${{ env.VCPKG_DEFAULT_TRIPLET }} curl:${{ env.VCPKG_DEFAULT_TRIPLET }} --clean-after-build
+          $VCPKG_ROOT/vcpkg install google-cloud-cpp[pubsub]:${{ env.VCPKG_DEFAULT_TRIPLET }} curl:${{ env.VCPKG_DEFAULT_TRIPLET }} --clean-after-build
           cmake -S . -B cmake-out -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
-            -DCMAKE_TOOLCHAIN_FILE=$HOME/vcpkg/scripts/buildsystems/vcpkg.cmake \
+            -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake \
             -DVCPKG_TARGET_TRIPLET=${{ env.VCPKG_DEFAULT_TRIPLET }}
 
       - name: Build
