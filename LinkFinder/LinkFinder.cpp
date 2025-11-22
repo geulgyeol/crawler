@@ -1,5 +1,9 @@
 #include "../Library/Library.cpp"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 using namespace std;
 namespace pubsub = ::google::cloud::pubsub;
 
@@ -32,8 +36,10 @@ int main() {
     //Publish(*blogProfilePublisher, { "N1_do_everything" }, "test");
     //Publish(*blogProfilePublisher, { "Tmungdenson" }, "test");
 
+#ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
+#endif
 
     while (true) {
         vector<string> links = Subscribe(*blogProfileSubscriber, 10);
