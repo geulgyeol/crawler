@@ -4,7 +4,9 @@ ARG TARGETARCH
 ARG TARGETOS
 
 # Builder stage
-FROM --platform=${BUILDPLATFORM} debian:bookworm-slim AS builder
+FROM --platform=${TARGETPLATFORM} debian:bookworm-slim AS builder
+
+ARG TARGETARCH
 
 # Install build dependencies
 RUN apt-get update \
@@ -21,26 +23,27 @@ RUN apt-get update \
        tar \
     && rm -rf /var/lib/apt/lists/*
 
-# Install vcpkg for dependencies (glibc triplet)
+# Set vcpkg triplet based on target architecture
 ENV VCPKG_ROOT=/opt/vcpkg \
-    VCPKG_DEFAULT_TRIPLET=x64-linux \
     VCPKG_BINARY_SOURCES="clear;default" \
     VCPKG_FEATURE_FLAGS=manifests
 
 RUN git clone https://github.com/microsoft/vcpkg.git ${VCPKG_ROOT} \
     && ${VCPKG_ROOT}/bootstrap-vcpkg.sh -disableMetrics
 
-# Install required libraries
-RUN ${VCPKG_ROOT}/vcpkg install google-cloud-cpp[pubsub]:x64-linux curl:x64-linux --clean-after-build
+# Install required libraries with correct triplet
+RUN TRIPLET=$(if [ "$TARGETARCH" = "arm64" ]; then echo "arm64-linux"; else echo "x64-linux"; fi) && \
+    ${VCPKG_ROOT}/vcpkg install google-cloud-cpp[pubsub]:${TRIPLET} curl:${TRIPLET} --clean-after-build
 
 WORKDIR /src
 
 COPY . .
 
 # Configure and build with vcpkg toolchain
-RUN cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+RUN TRIPLET=$(if [ "$TARGETARCH" = "arm64" ]; then echo "arm64-linux"; else echo "x64-linux"; fi) && \
+    cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake \
-    -DVCPKG_TARGET_TRIPLET=${VCPKG_DEFAULT_TRIPLET} \
+    -DVCPKG_TARGET_TRIPLET=${TRIPLET} \
     -DVCPKG_LIBRARY_LINKAGE=static \
     && cmake --build build --parallel
 
