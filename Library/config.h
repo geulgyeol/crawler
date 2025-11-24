@@ -19,14 +19,21 @@ public:
 	const string WRITING_FOR_PROFILE_SUB_ID;			// Writing For Profile Subscription ID (Writing Topic)
 	const string WRITING_FOR_CONTENT_SUB_ID;			// Writing For Content Subscription ID (Writing Topic)
 
+	const string ORDERING_KEY;							// pub/sub ordering key, not important
+
 	const string CRAWLER_NAME;							// Crawler Name
 
 	const string USER_AGENT;							// User Agent
 
+	const string LINK_KV_ENDPOINT;						// link-kv
+	const string HTML_STORAGE_ENDPOINT;					// html-storage
+	
 	const int MAX_CONCURRENT_REQUESTS;					// Max Concurrent Requests Count (**NOT RECOMMEND** change Default: 10)
 
 	const long long ROBOTS_CACHE_DURATION_SECONDS;		// robots.txt Cache Refresh Duration
 	const size_t MAX_ROBOTS_CACHE_SIZE;					// robots.txt Cache Max Count Limit (If exceeded limit, clear all cathy)
+
+	const bool ENABLE_DB_UPLOAD;
 
 	map<const string, const int> CRAWL_PER_SECOND_MAP;	// Crawl Per Second (**DONT** change string, 10 = crawl per 0.1s)
 };

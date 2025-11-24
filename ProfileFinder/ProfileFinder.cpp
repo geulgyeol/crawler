@@ -31,18 +31,16 @@ int main() {
     blogWritingLinkForProfileSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_PROFILE_SUB_ID))));
     blogWritingLinkForContentSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_CONTENT_SUB_ID))));
 
-    //Publish(*blogWritingPublisher, { "Nhaesung_88/223597388359" }, "test");
-    //Publish(*blogWritingPublisher, { "Tlsas4565/8838853" }, "test");
-    //Publish(*blogWritingPublisher, { "Tlsas4565/8838853" }, "test");
-    //Publish(*blogWritingPublisher, { "Tnelastory/35" }, "test");
-    //Publish(*blogWritingPublisher, { "Tnelastory/37" }, "test");
+    //Publish(*blogWritingPublisher, { "Nhaesung_88/223597388359" }, ORDERING_KEY);
+    //Publish(*blogWritingPublisher, { "Tlsas4565/8838853" }, ORDERING_KEY);
+    //Publish(*blogWritingPublisher, { "Tlsas4565/8838853" }, ORDERING_KEY);
+    //Publish(*blogWritingPublisher, { "Tnelastory/35" }, ORDERING_KEY);
+    //Publish(*blogWritingPublisher, { "Tnelastory/37" }, ORDERING_KEY);
 
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
 #endif
-
-    map<string, bool> visited;
 
     while (true) {
         vector<string> links = Subscribe(*blogWritingLinkForProfileSubscriber, 10);
@@ -96,17 +94,28 @@ int main() {
                     cout << "Collect Sympathy Blogger Ids\n";
                     for (auto j = begin; j != end; ++j) {
                         string id = "N" + (*j)[1].str();
-                        if (visited.find(id) == visited.end()) {
+                        if (CheckLinkNotVisited(curl, id)) {
                             blogIds.push_back(id);
-                            visited.insert({ id, true });
                             cout << "Current Collect : " << ++collectCnt << "\r";
                         }
                     }
                     cout << "\n";
 
-                    if (blogIds.empty()) continue;
+                    if (blogIds.empty()) {
+                        Delay(DELAY_MILLI_N);
+                        continue;
+                    }
 
-                    Publish(*blogProfilePublisher, blogIds, "test");
+                    vector<bool> registChecker(blogIds.size(), true);
+
+                    if (ENABLE_DB_UPLOAD) {
+                        for (int i = 0; i < blogIds.size(); i++) {
+                            registChecker[i] = RegisterLink(curl, blogIds[i]);
+                        }
+                    }
+
+                    Publish(*blogProfilePublisher, blogIds, ORDERING_KEY, registChecker);
+                    Delay(DELAY_MILLI_N);
                 }
                 else if (link[0] == 'T') {
                     string url = "https://" + profileName + ".tistory.com/m/api/" + writingNumber + "/comment";
@@ -143,21 +152,31 @@ int main() {
                         smatch matchId;
                         if (regex_search(full, matchId, commentBlogHomepageRegex)) {
                             string id = "T" + matchId[1].str();
-                            if (visited.find(id) == visited.end()) {
+                            if (CheckLinkNotVisited(curl, id)) {
                                 blogHomepages.push_back(id);
-                                visited.insert({ id, true });
                                 cout << "Current Collect : " << ++collectCnt << "\r";
                             }
                         }
                     }
                     cout << "\n";
 
-                    if (blogHomepages.empty()) continue;
+                    if (blogHomepages.empty()) {
+                        Delay(DELAY_MILLI_T);
+                        continue;
+                    }
 
-                    Publish(*blogProfilePublisher, blogHomepages, "test");
+                    vector<bool> registChecker(blogHomepages.size(), true);
+
+                    if (ENABLE_DB_UPLOAD) {
+                        for (int i = 0; i < blogHomepages.size(); i++) {
+                            registChecker[i] = RegisterLink(curl, blogHomepages[i]);
+                        }
+                    }
+
+                    Publish(*blogProfilePublisher, blogHomepages, ORDERING_KEY, registChecker);
+                    Delay(DELAY_MILLI_T);
                 }
 
-                Delay(DELAY_MILLI_T);
                 cout << "\n";
             }
         }

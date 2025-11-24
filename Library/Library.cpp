@@ -34,14 +34,21 @@ const string PROFILE_SUB_ID = config.PROFILE_SUB_ID;
 const string WRITING_FOR_PROFILE_SUB_ID = config.WRITING_FOR_PROFILE_SUB_ID;
 const string WRITING_FOR_CONTENT_SUB_ID = config.WRITING_FOR_CONTENT_SUB_ID;
 
+const string ORDERING_KEY = config.ORDERING_KEY;
+
 const string CRAWLER_NAME = config.CRAWLER_NAME;
 
 const string USER_AGENT = config.USER_AGENT;
+
+const string LINK_KV_ENDPOINT = config.LINK_KV_ENDPOINT;
+const string HTML_STORAGE_ENDPOINT = config.HTML_STORAGE_ENDPOINT;
 
 const int MAX_CONCURRENT_REQUESTS = config.MAX_CONCURRENT_REQUESTS;
 
 const long long ROBOTS_CACHE_DURATION_SECONDS = config.ROBOTS_CACHE_DURATION_SECONDS;
 const size_t MAX_ROBOTS_CACHE_SIZE = config.MAX_ROBOTS_CACHE_SIZE;
+
+const bool ENABLE_DB_UPLOAD = config.ENABLE_DB_UPLOAD;
 
 map<const string, const int> CRAWL_PER_SECOND_MAP = config.CRAWL_PER_SECOND_MAP;
 
@@ -86,10 +93,15 @@ void Delay(char blogType, const int DELAY_MILLI_N, const int DELAY_MILLI_T) {
     }
 }
 
-void Publish(pubsub::Publisher publisher, vector<string> contents, string orderingKey = "") try {
+void Publish(pubsub::Publisher publisher, vector<string> contents, string orderingKey = "", vector<bool> checker = {}) try {
     vector<google::cloud::future<google::cloud::StatusOr<string>>> futures;
 
-    for (const auto& content : contents) {
+    for (int i = 0; i < contents.size(); i++) {
+        if (!checker.empty() && checker.size() > i && !checker[i]) {
+            continue;
+        }
+
+        const string content = contents[i];
         futures.push_back(
             ((orderingKey == "") ? 
                 publisher.Publish(
@@ -108,7 +120,7 @@ void Publish(pubsub::Publisher publisher, vector<string> contents, string orderi
         );
     }
 
-    for (size_t i = 0; i < futures.size(); ++i) {
+    for (int i = 0; i < futures.size(); ++i) {
         auto id = futures[i].get();
         if (!id) {
             cerr << "Publish failed for \"" << contents[i] << "\": "
@@ -194,18 +206,20 @@ catch (google::cloud::Status const& status) {
 
 
 
-struct curl_slist* SetCURL(CURL* curl, string* readBuffer, string url, string referer = "", string range = "") {    
+struct curl_slist* SetCURL(CURL* curl, string* readBuffer, string url, string referer = "", string range = "", string request = "") {
     if (readBuffer) {
         readBuffer->clear();
     }
 
     struct curl_slist* headers = NULL;
-
+    
     curl_easy_reset(curl);
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, readBuffer);
     curl_easy_setopt(curl, CURLOPT_PRIVATE, readBuffer);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
 
     headers = curl_slist_append(headers, USER_AGENT.c_str());
     headers = curl_slist_append(headers, "X-Requested-With: XMLHttpRequest");
@@ -217,6 +231,10 @@ struct curl_slist* SetCURL(CURL* curl, string* readBuffer, string url, string re
 
     if (range != "") {
         curl_easy_setopt(curl, CURLOPT_RANGE, range.c_str());
+    }
+
+    if (request != "") {
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, request.c_str());
     }
 
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -403,17 +421,134 @@ bool IsAllowedByRobotsGeneral(const string& fullUrl) {
     }
 }
 
-string EscapeQuotes(const string input) {
+string EscapeQuotes(const string& input) {
     string result;
-    result.reserve(input.size() * 1.1);
+    result.reserve(input.size() * 1.5);
 
-    for (char c : input) {
-        if (c == '"') {
-            result.append("\\\"");
+    size_t segment_start = 0;
+    size_t input_len = input.length();
+
+    for (size_t current_pos = 0; current_pos < input_len; ++current_pos) {
+        char c = input[current_pos];
+        bool is_special = false;
+
+        if (c == '"' || c == '\\' || c == '\n' || c == '\r' || c == '\t' || c == '\b' || c == '\f') {
+            is_special = true;
         }
-        else {
-            result.push_back(c);
+        else if (static_cast<unsigned char>(c) < 0x20) {
+            is_special = true;
+        }
+
+        if (is_special) {
+            if (current_pos > segment_start) {
+                result.append(input, segment_start, current_pos - segment_start);
+            }
+
+            if (c == '"') {
+                result.append("\\\"");
+            }
+            else if (c == '\\') {
+                result.append("\\\\");
+            }
+            else if (c == '\n') {
+                result.append("\\n");
+            }
+            else if (c == '\r') {
+                result.append("\\r");
+            }
+            else if (c == '\t') {
+                result.append("\\t");
+            }
+            else if (c == '\b') {
+                result.append("\\b");
+            }
+            else if (c == '\f') {
+                result.append("\\f");
+            }
+            else {
+                char hex_buf[7];
+                sprintf(hex_buf, "\\u%04x", static_cast<unsigned int>(static_cast<unsigned char>(c)));
+                result.append(hex_buf);
+            }
+
+            segment_start = current_pos + 1;
         }
     }
+
+    if (input_len > segment_start) {
+        result.append(input, segment_start, input_len - segment_start);
+    }
+
     return result;
+}
+
+
+
+
+
+bool CheckLinkNotVisited(CURL* curl, const string link) {
+    string url = config.LINK_KV_ENDPOINT + "/" + link;
+    string readBuffer;
+    struct curl_slist* headers = SetCURL(curl, &readBuffer, url);
+    long httpCode = 0;
+
+    CURLcode res = curl_easy_perform(curl);
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
+    curl_slist_free_all(headers);
+
+    if (res != CURLE_OK) {
+        cerr << "KV GET failed for [" << link << "]: " << curl_easy_strerror(res) << endl;
+        return false;
+    }
+
+    return httpCode == 404;
+}
+
+bool RegisterLink(CURL* curl, const string link) {
+    string url = config.LINK_KV_ENDPOINT + "/" + link;
+    string readBuffer;
+
+    struct curl_slist* headers = SetCURL(curl, &readBuffer, url, "", "", "POST");
+
+    long httpCode = 0;
+    CURLcode res = curl_easy_perform(curl);
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
+    curl_slist_free_all(headers);
+
+    if (res != CURLE_OK) {
+        cerr << "KV POST failed for [" << link << "]: " << curl_easy_strerror(res) << endl;
+        return false;
+    }
+
+    return httpCode == 201;
+}
+
+bool PostHTMLContent(CURL* curl, const string link, const string Body) {
+    string url = config.HTML_STORAGE_ENDPOINT + "/" + link;
+    string readBuffer;
+    struct curl_slist* headers = NULL;
+
+    curl_easy_reset(curl);
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, Body.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, Body.length());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+
+    headers = curl_slist_append(headers, config.USER_AGENT.c_str());
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+    long httpCode = 0;
+    CURLcode res = curl_easy_perform(curl);
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
+    curl_slist_free_all(headers);
+
+    if (res != CURLE_OK) {
+        cerr << "HTML POST failed for [" << link << "]: " << curl_easy_strerror(res) << endl;
+        return false;
+    }
+
+    return httpCode == 200;
 }

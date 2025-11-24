@@ -31,10 +31,10 @@ int main() {
     blogWritingLinkForProfileSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_PROFILE_SUB_ID))));
     blogWritingLinkForContentSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_CONTENT_SUB_ID))));
 
-    //Publish(*blogProfilePublisher, { "Nhaesung_88" }, "test");
-    //Publish(*blogProfilePublisher, { "Tnelastory" }, "test");
-    //Publish(*blogProfilePublisher, { "N1_do_everything" }, "test");
-    //Publish(*blogProfilePublisher, { "Tmungdenson" }, "test");
+    //Publish(*blogProfilePublisher, { "Nhaesung_88" }, ORDERING_KEY);
+    //Publish(*blogProfilePublisher, { "Tnelastory" }, ORDERING_KEY);
+    //Publish(*blogProfilePublisher, { "N1_do_everything" }, ORDERING_KEY);
+    //Publish(*blogProfilePublisher, { "Tmungdenson" }, ORDERING_KEY);
 
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
@@ -124,7 +124,7 @@ int main() {
                     }
 
                     printf("\n");
-                    Publish(*blogWritingPublisher, validPages, "test");
+                    Publish(*blogWritingPublisher, validPages, ORDERING_KEY);
                     Delay(DELAY_MILLI_N);
                 }
                 else if (link[0] == 'T') {
@@ -261,7 +261,7 @@ int main() {
                             cout << "\n# Valid Page Count : " << validPages.size() << endl;
                             curl_multi_cleanup(multi_handle);
 
-                            Publish(*blogWritingPublisher, validPages, "test");
+                            Publish(*blogWritingPublisher, validPages, ORDERING_KEY);
                         }
                         catch (exception& e) {
                             cout << "I hate Tistory" << endl;

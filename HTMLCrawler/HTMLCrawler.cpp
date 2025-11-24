@@ -108,6 +108,10 @@ int main() {
             links_index = 0;
         }
 
+        CURL* curl;
+        curl_global_init(CURL_GLOBAL_DEFAULT);
+        curl = curl_easy_init();
+
         int running_handles = 0;
 
         while (links_index < links.size() || running_handles > 0) {
@@ -157,6 +161,15 @@ int main() {
                         Body.append("tistory");
                     }
                     Body.append("\",\"timestamp\":" + to_string(chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count()) + "}");
+
+                    size_t pos = link.find('/');
+                    if (pos != string::npos) {
+                        link.replace(pos, 1, "%20");
+                    }
+
+                    if (ENABLE_DB_UPLOAD) {
+                        PostHTMLContent(curl, link, Body);
+                    }
 
                     delete buffer;
                     buffers.erase(eh);
