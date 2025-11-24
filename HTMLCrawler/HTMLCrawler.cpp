@@ -168,7 +168,7 @@ int main() {
                     }
 
                     if (ENABLE_DB_UPLOAD) {
-                        PostHTMLContent(curl, link, Body);
+                        PostHTMLContent(curl, link.substr(1), Body);
                     }
 
                     delete buffer;
