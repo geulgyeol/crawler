@@ -5,12 +5,14 @@ on:
     branches:
       - main
       - master
+      - prod
     tags:
       - 'v*'
   pull_request:
     branches:
       - main
       - master
+      - prod
 
 env:
   REGISTRY: ghcr.io
