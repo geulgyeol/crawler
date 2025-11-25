@@ -80,7 +80,7 @@ int main() {
     }
 
     if (curl) {
-        curl_easy_cleanup();
+        curl_easy_cleanup(curl);
     }
 
     curl_global_cleanup();
