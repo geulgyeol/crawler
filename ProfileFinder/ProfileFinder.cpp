@@ -45,6 +45,11 @@ int main() {
     curl_global_init(CURL_GLOBAL_DEFAULT);
     CURL* curl;
 
+    map<string, bool> visited;
+    if (!ENABLE_DB_UPLOAD) {
+        visited.insert({ "visited map is not empty", true });
+    }
+
     while (true) {
         vector<string> links = Subscribe(*blogWritingLinkForProfileSubscriber, 10);
 
@@ -95,7 +100,14 @@ int main() {
                     cout << "Collect Sympathy Blogger Ids\n";
                     for (auto j = begin; j != end; ++j) {
                         string id = "N" + (*j)[1].str();
-                        if (CheckLinkNotVisited(curl, id)) {
+                        if (!ENABLE_DB_UPLOAD) {
+                            if (visited.find(id) == visited.end()) {
+                                blogIds.push_back(id);
+                                visited.insert({ id, true });
+                                cout << "Current Collect : " << ++collectCnt << "\r";
+                            }
+                        }
+                        else if (CheckLinkNotVisited(curl, id)) {
                             blogIds.push_back(id);
                             cout << "Current Collect : " << ++collectCnt << "\r";
                         }
@@ -153,7 +165,14 @@ int main() {
                         smatch matchId;
                         if (regex_search(full, matchId, commentBlogHomepageRegex)) {
                             string id = "T" + matchId[1].str();
-                            if (CheckLinkNotVisited(curl, id)) {
+                            if (!ENABLE_DB_UPLOAD) {
+                                if (visited.find(id) == visited.end()) {
+                                    blogHomepages.push_back(id);
+                                    visited.insert({ id, true });
+                                    cout << "Current Collect : " << ++collectCnt << "\r";
+                                }
+                            }
+                            else if (CheckLinkNotVisited(curl, id)) {
                                 blogHomepages.push_back(id);
                                 cout << "Current Collect : " << ++collectCnt << "\r";
                             }
