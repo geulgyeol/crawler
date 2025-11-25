@@ -51,7 +51,8 @@ RUN TRIPLET=$(if [ "$TARGETARCH" = "arm64" ]; then echo "arm64-linux"; else echo
 RUN mkdir -p /opt/crawler/bin \
     && cp build/HTMLCrawler/HTMLCrawler /opt/crawler/bin/ \
     && cp build/LinkFinder/LinkFinder /opt/crawler/bin/ \
-    && cp build/ProfileFinder/ProfileFinder /opt/crawler/bin/
+    && cp build/ProfileFinder/ProfileFinder /opt/crawler/bin/ \
+    && cp build/ProfilePublisher/ProfilePublisher /opt/crawler/bin/
 
 # Runtime stage (Debian slim)
 FROM --platform=${TARGETPLATFORM} debian:bookworm-slim AS runner
