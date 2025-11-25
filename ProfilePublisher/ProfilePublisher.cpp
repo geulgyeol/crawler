@@ -20,9 +20,9 @@ int main() {
     SetConsoleCP(CP_UTF8);
 #endif
 
-    CURL* curl;
-
     curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    CURL* curl;
     curl = curl_easy_init();
 
     cout << "Input Profile to Publish\n\n";
@@ -77,6 +77,10 @@ int main() {
         }
 
         cout << "\n";
+    }
+
+    if (curl) {
+        curl_easy_cleanup();
     }
 
     curl_global_cleanup();

@@ -42,6 +42,9 @@ int main() {
     SetConsoleCP(CP_UTF8);
 #endif
 
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    CURL* curl;
+
     while (true) {
         vector<string> links = Subscribe(*blogWritingLinkForProfileSubscriber, 10);
 
@@ -49,10 +52,8 @@ int main() {
             continue;
         }
 
-        CURL* curl;
         string readBuffer;
 
-        curl_global_init(CURL_GLOBAL_DEFAULT);
         curl = curl_easy_init();
         if (curl) {
             for (int i = 0; i < links.size(); i++) {
@@ -181,9 +182,12 @@ int main() {
             }
         }
 
-        curl_global_cleanup();
+        if (curl) {
+            curl_easy_cleanup(curl);
+        }
     }
 
+    curl_global_cleanup();
 
     return 0;
 }

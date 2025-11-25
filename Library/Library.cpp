@@ -15,6 +15,8 @@
 #include <mutex>
 #include <future>
 #include <atomic>
+#include <sstream>
+#include <iomanip>
 
 
 using namespace std;
@@ -298,14 +300,6 @@ string ExtractUrlPath(const string& fullUrl, const string& domainRootUrl) {
 }
 
 
-
-size_t RobotsWriteCallback(void* contents, size_t size, size_t nmemb, string* buffer) {
-    size_t totalSize = size * nmemb;
-    buffer->append((char*)contents, totalSize);
-    return totalSize;
-}
-
-
 bool CheckRules(RobotsCacheEntry& entry, const string& userAgent, const string& path) {
     if (!entry.exists) return true;
 
@@ -466,9 +460,12 @@ string EscapeQuotes(const string& input) {
                 result.append("\\f");
             }
             else {
-                char hex_buf[7];
-                sprintf(hex_buf, "\\u%04x", static_cast<unsigned int>(static_cast<unsigned char>(c)));
-                result.append(hex_buf);
+                stringstream ss;
+                ss << "\\u"
+                    << hex << uppercase
+                    << setfill('0') << setw(4)
+                    << static_cast<unsigned int>(static_cast<unsigned char>(c));
+                result.append(ss.str());
             }
 
             segment_start = current_pos + 1;
