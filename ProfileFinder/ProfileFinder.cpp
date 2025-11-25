@@ -106,15 +106,15 @@ int main() {
                         continue;
                     }
 
-                    vector<bool> registChecker(blogIds.size(), true);
+                    vector<bool> registerChecker(blogIds.size(), true);
 
                     if (ENABLE_DB_UPLOAD) {
                         for (int i = 0; i < blogIds.size(); i++) {
-                            registChecker[i] = RegisterLink(curl, blogIds[i]);
+                            registerChecker[i] = RegisterLink(curl, blogIds[i]);
                         }
                     }
 
-                    Publish(*blogProfilePublisher, blogIds, ORDERING_KEY, registChecker);
+                    Publish(*blogProfilePublisher, blogIds, ORDERING_KEY, registerChecker);
                     Delay(DELAY_MILLI_N);
                 }
                 else if (link[0] == 'T') {
@@ -165,15 +165,15 @@ int main() {
                         continue;
                     }
 
-                    vector<bool> registChecker(blogHomepages.size(), true);
+                    vector<bool> registerChecker(blogHomepages.size(), true);
 
                     if (ENABLE_DB_UPLOAD) {
                         for (int i = 0; i < blogHomepages.size(); i++) {
-                            registChecker[i] = RegisterLink(curl, blogHomepages[i]);
+                            registerChecker[i] = RegisterLink(curl, blogHomepages[i]);
                         }
                     }
 
-                    Publish(*blogProfilePublisher, blogHomepages, ORDERING_KEY, registChecker);
+                    Publish(*blogProfilePublisher, blogHomepages, ORDERING_KEY, registerChecker);
                     Delay(DELAY_MILLI_T);
                 }
 
