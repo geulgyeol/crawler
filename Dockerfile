@@ -26,15 +26,14 @@ RUN apt-get update \
 # Set vcpkg triplet based on target architecture
 ENV VCPKG_ROOT=/opt/vcpkg \
     VCPKG_BINARY_SOURCES="clear;default" \
-    VCPKG_FEATURE_FLAGS=manifests \
-    VCPKG_BUILD_TYPE=release
+    VCPKG_FEATURE_FLAGS=manifests
 
 RUN git clone https://github.com/microsoft/vcpkg.git ${VCPKG_ROOT} \
     && ${VCPKG_ROOT}/bootstrap-vcpkg.sh -disableMetrics
 
 # Install required libraries with correct triplet
 RUN TRIPLET=$(if [ "$TARGETARCH" = "arm64" ]; then echo "arm64-linux"; else echo "x64-linux"; fi) && \
-    ${VCPKG_ROOT}/vcpkg install google-cloud-cpp[pubsub]:${TRIPLET} curl:${TRIPLET} --clean-after-build
+    ${VCPKG_ROOT}/vcpkg install google-cloud-cpp[pubsub]:${TRIPLET} curl:${TRIPLET} --clean-after-build -DVCPKG_BUILD_TYPE=Release
 
 WORKDIR /src
 
