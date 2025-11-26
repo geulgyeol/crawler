@@ -26,7 +26,8 @@ RUN apt-get update \
 # Set vcpkg triplet based on target architecture
 ENV VCPKG_ROOT=/opt/vcpkg \
     VCPKG_BINARY_SOURCES="clear;default" \
-    VCPKG_FEATURE_FLAGS=manifests
+    VCPKG_FEATURE_FLAGS=manifests \
+    VCPKG_BUILD_TYPE=release
 
 RUN git clone https://github.com/microsoft/vcpkg.git ${VCPKG_ROOT} \
     && ${VCPKG_ROOT}/bootstrap-vcpkg.sh -disableMetrics
