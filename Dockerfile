@@ -34,7 +34,7 @@ RUN git clone https://github.com/microsoft/vcpkg.git ${VCPKG_ROOT} \
 
 # Install required libraries with correct triplet
 RUN TRIPLET=$(if [ "$TARGETARCH" = "arm64" ]; then echo "arm64-linux"; else echo "x64-linux"; fi) && \
-    ${VCPKG_ROOT}/vcpkg install google-cloud-cpp[pubsub]:${TRIPLET} curl:${TRIPLET} --clean-after-build
+    VCPKG_BUILD_TYPE=release ${VCPKG_ROOT}/vcpkg install google-cloud-cpp[pubsub]:${TRIPLET} curl:${TRIPLET} --clean-after-build
 
 WORKDIR /src
 
@@ -46,6 +46,7 @@ RUN TRIPLET=$(if [ "$TARGETARCH" = "arm64" ]; then echo "arm64-linux"; else echo
     -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake \
     -DVCPKG_TARGET_TRIPLET=${TRIPLET} \
     -DVCPKG_LIBRARY_LINKAGE=static \
+    -DVCPKG_BUILD_TYPE=release \
     && cmake --build build --parallel
 
 # Collect binaries
