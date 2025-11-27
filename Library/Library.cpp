@@ -138,7 +138,7 @@ catch (google::cloud::Status const& status) {
 }
 
 
-vector<string> Subscribe(pubsub::Subscriber subscriber, const int messageCnt, const int waitingTime = 5) try {
+vector<string> Subscribe(pubsub::Subscriber subscriber, const int messageCnt, const int waitingTime = 30) try {
     cout << "Listening for messages on subscription" << endl;
 
     vector<string> messages = vector<string>(messageCnt);
