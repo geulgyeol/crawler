@@ -181,8 +181,8 @@ vector<string> Subscribe(pubsub::Subscriber subscriber, const int messageCnt, co
     auto status = shutdown_future.wait_for(chrono::seconds(waitingTime));
 
     session.cancel();
-    session.get();
-    cout << "session End" << endl;
+    auto session_status = session.get();
+    std::cout << "session End, status = " << session_status << "\n";
 
     if (status == future_status::timeout) {
         int received_count = cnt.load();
