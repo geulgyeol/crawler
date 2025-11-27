@@ -42,6 +42,14 @@ int main() {
     SetConsoleCP(CP_UTF8);
 #endif
 
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    CURL* curl;
+
+    map<string, bool> visited;
+    if (!ENABLE_DB_UPLOAD) {
+        visited.insert({ "visited map is not empty", true });
+    }
+
     while (true) {
         vector<string> links = Subscribe(*blogWritingLinkForProfileSubscriber, 10);
 
@@ -49,10 +57,8 @@ int main() {
             continue;
         }
 
-        CURL* curl;
         string readBuffer;
 
-        curl_global_init(CURL_GLOBAL_DEFAULT);
         curl = curl_easy_init();
         if (curl) {
             for (int i = 0; i < links.size(); i++) {
@@ -94,7 +100,14 @@ int main() {
                     cout << "Collect Sympathy Blogger Ids\n";
                     for (auto j = begin; j != end; ++j) {
                         string id = "N" + (*j)[1].str();
-                        if (CheckLinkNotVisited(curl, id)) {
+                        if (!ENABLE_DB_UPLOAD) {
+                            if (visited.find(id) == visited.end()) {
+                                blogIds.push_back(id);
+                                visited.insert({ id, true });
+                                cout << "Current Collect : " << ++collectCnt << "\r";
+                            }
+                        }
+                        else if (CheckLinkNotVisited(curl, id)) {
                             blogIds.push_back(id);
                             cout << "Current Collect : " << ++collectCnt << "\r";
                         }
@@ -106,15 +119,15 @@ int main() {
                         continue;
                     }
 
-                    vector<bool> registChecker(blogIds.size(), true);
+                    vector<bool> registerChecker(blogIds.size(), true);
 
                     if (ENABLE_DB_UPLOAD) {
                         for (int i = 0; i < blogIds.size(); i++) {
-                            registChecker[i] = RegisterLink(curl, blogIds[i]);
+                            registerChecker[i] = RegisterLink(curl, blogIds[i]);
                         }
                     }
 
-                    Publish(*blogProfilePublisher, blogIds, ORDERING_KEY, registChecker);
+                    Publish(*blogProfilePublisher, blogIds, ORDERING_KEY, registerChecker);
                     Delay(DELAY_MILLI_N);
                 }
                 else if (link[0] == 'T') {
@@ -152,7 +165,14 @@ int main() {
                         smatch matchId;
                         if (regex_search(full, matchId, commentBlogHomepageRegex)) {
                             string id = "T" + matchId[1].str();
-                            if (CheckLinkNotVisited(curl, id)) {
+                            if (!ENABLE_DB_UPLOAD) {
+                                if (visited.find(id) == visited.end()) {
+                                    blogHomepages.push_back(id);
+                                    visited.insert({ id, true });
+                                    cout << "Current Collect : " << ++collectCnt << "\r";
+                                }
+                            }
+                            else if (CheckLinkNotVisited(curl, id)) {
                                 blogHomepages.push_back(id);
                                 cout << "Current Collect : " << ++collectCnt << "\r";
                             }
@@ -165,15 +185,15 @@ int main() {
                         continue;
                     }
 
-                    vector<bool> registChecker(blogHomepages.size(), true);
+                    vector<bool> registerChecker(blogHomepages.size(), true);
 
                     if (ENABLE_DB_UPLOAD) {
                         for (int i = 0; i < blogHomepages.size(); i++) {
-                            registChecker[i] = RegisterLink(curl, blogHomepages[i]);
+                            registerChecker[i] = RegisterLink(curl, blogHomepages[i]);
                         }
                     }
 
-                    Publish(*blogProfilePublisher, blogHomepages, ORDERING_KEY, registChecker);
+                    Publish(*blogProfilePublisher, blogHomepages, ORDERING_KEY, registerChecker);
                     Delay(DELAY_MILLI_T);
                 }
 
@@ -181,9 +201,12 @@ int main() {
             }
         }
 
-        curl_global_cleanup();
+        if (curl) {
+            curl_easy_cleanup(curl);
+        }
     }
 
+    curl_global_cleanup();
 
     return 0;
 }

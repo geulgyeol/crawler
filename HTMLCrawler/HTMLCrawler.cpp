@@ -82,10 +82,20 @@ int main() {
 #endif
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    CURL* curl;
+    curl = curl_easy_init();
     CURLM* multi_handle = curl_multi_init();
 
     if (!multi_handle) {
         cerr << "Failed to initialize CURL multi handle." << endl;
+        if (curl) curl_easy_cleanup(curl);
+        curl_global_cleanup();
+        return 0;
+    }
+    if (!curl) {
+        cerr << "Failed to initialize CURL easy handle for sync tasks." << endl;
+        curl_multi_cleanup(multi_handle);
         curl_global_cleanup();
         return 0;
     }
@@ -107,10 +117,6 @@ int main() {
         else {
             links_index = 0;
         }
-
-        CURL* curl;
-        curl_global_init(CURL_GLOBAL_DEFAULT);
-        curl = curl_easy_init();
 
         int running_handles = 0;
 
@@ -168,7 +174,7 @@ int main() {
                     }
 
                     if (ENABLE_DB_UPLOAD) {
-                        PostHTMLContent(curl, link, Body);
+                        PostHTMLContent(curl, link.substr(1), Body);
                     }
 
                     delete buffer;
@@ -196,6 +202,9 @@ int main() {
         cout << "All links processed for this batch. Total remaining handles: " << buffers.size() << endl;
     }
 
+    if (curl) {
+        curl_easy_cleanup(curl);
+    }
     curl_multi_cleanup(multi_handle);
     curl_global_cleanup();
 

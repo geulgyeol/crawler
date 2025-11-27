@@ -41,17 +41,19 @@ int main() {
     SetConsoleCP(CP_UTF8);
 #endif
 
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+    CURL* curl;
+
     while (true) {
         vector<string> links = Subscribe(*blogProfileSubscriber, 10);
+        vector<string*> buffers;
 
         if (links[0] == TIMEOUTED) {
             continue;
         }
 
         string readBuffer;
-        CURL* curl;
-
-        curl_global_init(CURL_GLOBAL_DEFAULT);
+        
         curl = curl_easy_init();
         if (curl) {
             for (int i = 0; i < links.size(); i++) {
@@ -164,6 +166,7 @@ int main() {
                             for (int j = 0; j < MAX_CONCURRENT_REQUESTS && currentIndex > 0; ++j) {
                                 CURL* eh = curl_easy_init();
                                 string* buffer = new string();
+                                buffers.push_back(buffer);
                                 string url = "https://" + link.substr(1) + ".tistory.com/" + to_string(currentIndex);
 
                                 if (!IsAllowedByRobotsGeneral(url)) {
@@ -221,7 +224,6 @@ int main() {
                                             }
                                         }
 
-                                        delete buffer;
                                         curl_multi_remove_handle(multi_handle, eh);
                                         curl_easy_cleanup(eh);
                                         --activeTransfers;
@@ -231,12 +233,14 @@ int main() {
                                         if (currentIndex > 0) {
                                             CURL* eh = curl_easy_init();
                                             string* buffer = new string();
+                                            buffers.push_back(buffer);
                                             string url = "https://" + link.substr(1) + ".tistory.com/" + to_string(currentIndex);
 
                                             if (!IsAllowedByRobotsGeneral(url)) {
                                                 cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
-                                                Delay(DELAY_MILLI_T);
                                                 currentIndex--;
+                                                curl_easy_cleanup(eh);
+                                                Delay(DELAY_MILLI_T);
                                                 continue;
                                             }
 
@@ -271,10 +275,21 @@ int main() {
                 cout << "\n";
             }
         }
-        curl_global_cleanup();
+
+        if (curl) {
+            curl_easy_cleanup(curl);
+        }
+
+        if (!buffers.empty()) {
+            for (int i = 0; i < buffers.size(); i++) {
+                if (buffers[i] != nullptr) {
+                    delete buffers[i];
+                }
+            }
+        }
     }
 
-
+    curl_global_cleanup();
 
     return 0;
 }
