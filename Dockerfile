@@ -61,6 +61,7 @@ RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
        ca-certificates \
        libstdc++6 \
+       libc6-compat \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
