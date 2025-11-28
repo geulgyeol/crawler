@@ -62,6 +62,14 @@ int main() {
                     break;
                 }
 
+                string link_t = link;
+                size_t pos = link_t.find('/');
+                if (pos != string::npos) {
+                    link_t.replace(pos, 1, "%20");
+                }
+
+                if (!CheckLinkNotVisited(curl, "LinkFinder_" + link_t)) continue;
+
                 if (link[0] == 'N') {
                     string blogName = link.substr(1);
                     vector<string> validPages;
@@ -125,8 +133,12 @@ int main() {
                         Delay(DELAY_MILLI_N);
                     }
 
-                    printf("\n");
-                    Publish(*blogWritingPublisher, validPages, ORDERING_KEY);
+                    cout << "\n";
+
+                    if (RegisterLink(curl, "LinkFinder_" + link_t)) {
+                        Publish(*blogWritingPublisher, validPages, ORDERING_KEY);
+                    }
+                    
                     Delay(DELAY_MILLI_N);
                 }
                 else if (link[0] == 'T') {
@@ -265,7 +277,11 @@ int main() {
                             cout << "\n# Valid Page Count : " << validPages.size() << endl;
                             curl_multi_cleanup(multi_handle);
 
-                            Publish(*blogWritingPublisher, validPages, ORDERING_KEY);
+                            if (RegisterLink(curl, "LinkFinder_" + link_t)) {
+                                Publish(*blogWritingPublisher, validPages, ORDERING_KEY);
+                            }
+
+                            Delay(DELAY_MILLI_N);
                         }
                         catch (exception& e) {
                             cout << "I hate Tistory" << endl;

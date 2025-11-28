@@ -46,6 +46,7 @@ const string LINK_KV_ENDPOINT = config.LINK_KV_ENDPOINT;
 const string HTML_STORAGE_ENDPOINT = config.HTML_STORAGE_ENDPOINT;
 
 const int MAX_CONCURRENT_REQUESTS = config.MAX_CONCURRENT_REQUESTS;
+const int DEFAULT_SUB_WAITING_TIME = config.DEFAULT_SUB_WAITING_TIME;
 
 const long long ROBOTS_CACHE_DURATION_SECONDS = config.ROBOTS_CACHE_DURATION_SECONDS;
 const size_t MAX_ROBOTS_CACHE_SIZE = config.MAX_ROBOTS_CACHE_SIZE;
@@ -99,8 +100,8 @@ void Publish(pubsub::Publisher publisher, vector<string> contents, string orderi
     vector<google::cloud::future<google::cloud::StatusOr<string>>> futures;
 
     for (int i = 0; i < contents.size(); i++) {
-        if (!checker.empty() && checker.size() > i && !checker[i]) {
-            continue;
+        if (!checker.empty() && checker.size() > i) {
+            if (!checker[i]) continue;
         }
 
         const string content = contents[i];
@@ -138,7 +139,7 @@ catch (google::cloud::Status const& status) {
 }
 
 
-vector<string> Subscribe(pubsub::Subscriber subscriber, const int messageCnt, const int waitingTime = 5) try {
+vector<string> Subscribe(pubsub::Subscriber subscriber, const int messageCnt, const int waitingTime = DEFAULT_SUB_WAITING_TIME) try {
     cout << "Listening for messages on subscription" << endl;
 
     vector<string> messages = vector<string>(messageCnt);
@@ -181,8 +182,8 @@ vector<string> Subscribe(pubsub::Subscriber subscriber, const int messageCnt, co
     auto status = shutdown_future.wait_for(chrono::seconds(waitingTime));
 
     session.cancel();
-    session.get();
-    cout << "session End" << endl;
+    auto session_status = session.get();
+    cout << "session End, status = " << session_status << "\n";
 
     if (status == future_status::timeout) {
         int received_count = cnt.load();
@@ -503,6 +504,12 @@ bool CheckLinkNotVisited(CURL* curl, const string link) {
 
 bool RegisterLink(CURL* curl, const string link) {
     string url = config.LINK_KV_ENDPOINT + "/" + link;
+    
+    if (!CheckLinkNotVisited(curl, link)) {
+        cout << "Register Links failed for [" << link << "]\n";
+        return false;
+    }
+    
     string readBuffer;
 
     struct curl_slist* headers = SetCURL(curl, &readBuffer, url, "", "", "POST");

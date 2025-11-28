@@ -16,9 +16,10 @@ Config::Config() :
     LINK_KV_ENDPOINT("localhost:8080"), //link-kv.default.svc.cluster.local
     HTML_STORAGE_ENDPOINT("localhost:8080"), //html-storage.default.svc.cluster.local
     MAX_CONCURRENT_REQUESTS(10),
+    DEFAULT_SUB_WAITING_TIME(5),
     ROBOTS_CACHE_DURATION_SECONDS(3600),
     MAX_ROBOTS_CACHE_SIZE(100),
-    ENABLE_DB_UPLOAD(false)
+    ENABLE_DB_UPLOAD(true)
 
 {
     CRAWL_PER_SECOND_MAP.insert({ "LinkFinder_N", 4 });
