@@ -183,11 +183,7 @@ vector<string> Subscribe(pubsub::Subscriber subscriber, const int messageCnt, co
 
     session.cancel();
     auto session_status = session.get();
-<<<<<<< HEAD
     std::cout << "session End, status = " << session_status << "\n";
-=======
-    cout << "session End, status = " << session_status << "\n";
->>>>>>> origin/master
 
     if (status == future_status::timeout) {
         int received_count = cnt.load();
