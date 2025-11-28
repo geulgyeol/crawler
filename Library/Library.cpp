@@ -505,10 +505,10 @@ bool CheckLinkNotVisited(CURL* curl, const string link) {
 bool RegisterLink(CURL* curl, const string link) {
     string url = config.LINK_KV_ENDPOINT + "/" + link;
     
-    if (!CheckLinkNotVisited(curl, link)) {
+    /*if (!CheckLinkNotVisited(curl, link)) {
         cout << "Register Links failed for [" << link << "]\n";
         return false;
-    }
+    }*/
     
     string readBuffer;
 
