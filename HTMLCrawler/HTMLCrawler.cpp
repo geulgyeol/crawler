@@ -21,8 +21,15 @@ unique_ptr<pubsub::Subscriber> blogWritingLinkForContentSubscriber;
 
 vector<struct curl_slist*> headersList;
 
-CURL* CreateHandle(CURLM* multi_handle, const string& link, map<CURL*, string*>& buffers, map<CURL*, string>& link_data) {
+CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& buffers, map<CURL*, string>& link_data, CURL* curl) {
     if (link.empty()) return nullptr;
+
+    size_t pos = link.find('/');
+    string link_t = link;
+    if (pos == string::npos) {
+        return nullptr;
+    }
+    if (!CheckLinkNotVisited(curl, "Crawler_" + link_t.replace(pos, 1, "%20"))) return nullptr;
 
     CURL* eh = curl_easy_init();
     if (!eh) {
@@ -123,7 +130,7 @@ int main() {
         while (links_index < links.size() || running_handles > 0) {
 
             while (running_handles < MAX_CONCURRENT_REQUESTS && links_index < links.size()) {
-                CURL* eh = CreateHandle(multi_handle, links[links_index], buffers, link_data);
+                CURL* eh = CreateHandle(multi_handle, links[links_index], buffers, link_data, curl);
                 if (eh) {
                     curl_multi_perform(multi_handle, &running_handles);
                 }
@@ -157,24 +164,25 @@ int main() {
                         cerr << "FAILED for [" << link << "] (Code: " << response_code << "). Error: " << curl_easy_strerror(msg->data.result) << endl;
                     }
 
-                    string Body;
-
-                    Body.append("{\"body\":\"" + EscapeQuotes(*buffer) + "\",\"blog\":\"");
-                    if (!link.empty() && link[0] == 'N') {
-                        Body.append("naver");
-                    }
-                    else if (!link.empty() && link[0] == 'T') {
-                        Body.append("tistory");
-                    }
-                    Body.append("\",\"timestamp\":" + to_string(chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count()) + "}");
-
-                    size_t pos = link.find('/');
-                    if (pos != string::npos) {
-                        link.replace(pos, 1, "%20");
-                    }
-
                     if (ENABLE_DB_UPLOAD) {
-                        PostHTMLContent(curl, link.substr(1), Body);
+                        string Body;
+
+                        Body.append("{\"body\":\"" + EscapeQuotes(*buffer) + "\",\"blog\":\"");
+                        if (!link.empty() && link[0] == 'N') {
+                            Body.append("naver");
+                        }
+                        else if (!link.empty() && link[0] == 'T') {
+                            Body.append("tistory");
+                        }
+                        Body.append("\",\"timestamp\":" + to_string(chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count()) + "}");
+
+                        size_t pos = link.find('/');
+                        if (pos != string::npos) {
+                            link.replace(pos, 1, "%20");
+                            if (RegisterLink(curl, "Crawler_" + link)) {
+                                PostHTMLContent(curl, link.substr(1), Body);
+                            }
+                        }
                     }
 
                     delete buffer;

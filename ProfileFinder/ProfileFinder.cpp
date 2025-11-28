@@ -107,7 +107,7 @@ int main() {
                                 cout << "Current Collect : " << ++collectCnt << "\r";
                             }
                         }
-                        else if (CheckLinkNotVisited(curl, id)) {
+                        else if (CheckLinkNotVisited(curl, "ProfileFinder_" + id)) {
                             blogIds.push_back(id);
                             cout << "Current Collect : " << ++collectCnt << "\r";
                         }
@@ -123,7 +123,7 @@ int main() {
 
                     if (ENABLE_DB_UPLOAD) {
                         for (int i = 0; i < blogIds.size(); i++) {
-                            registerChecker[i] = RegisterLink(curl, blogIds[i]);
+                            registerChecker[i] = RegisterLink(curl, "ProfileFinder_" + blogIds[i]);
                         }
                     }
 
@@ -172,7 +172,7 @@ int main() {
                                     cout << "Current Collect : " << ++collectCnt << "\r";
                                 }
                             }
-                            else if (CheckLinkNotVisited(curl, id)) {
+                            else if (CheckLinkNotVisited(curl, "ProfileFinder_" + id)) {
                                 blogHomepages.push_back(id);
                                 cout << "Current Collect : " << ++collectCnt << "\r";
                             }
@@ -189,7 +189,7 @@ int main() {
 
                     if (ENABLE_DB_UPLOAD) {
                         for (int i = 0; i < blogHomepages.size(); i++) {
-                            registerChecker[i] = RegisterLink(curl, blogHomepages[i]);
+                            registerChecker[i] = RegisterLink(curl, "ProfileFinder_" + blogHomepages[i]);
                         }
                     }
 

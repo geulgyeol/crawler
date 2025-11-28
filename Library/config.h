@@ -29,6 +29,8 @@ public:
 	const string HTML_STORAGE_ENDPOINT;					// html-storage
 	
 	const int MAX_CONCURRENT_REQUESTS;					// Max Concurrent Requests Count (**NOT RECOMMEND** change Default: 10)
+	
+	const int DEFAULT_SUB_WAITING_TIME;					// Default Subscription Waiting Time
 
 	const long long ROBOTS_CACHE_DURATION_SECONDS;		// robots.txt Cache Refresh Duration
 	const size_t MAX_ROBOTS_CACHE_SIZE;					// robots.txt Cache Max Count Limit (If exceeded limit, clear all cathy)
