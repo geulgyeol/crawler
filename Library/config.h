@@ -19,8 +19,6 @@ public:
 	const string WRITING_FOR_PROFILE_SUB_ID;			// Writing For Profile Subscription ID (Writing Topic)
 	const string WRITING_FOR_CONTENT_SUB_ID;			// Writing For Content Subscription ID (Writing Topic)
 
-	const string ORDERING_KEY;							// pub/sub ordering key, not important
-
 	const string CRAWLER_NAME;							// Crawler Name
 
 	const string USER_AGENT;							// User Agent
