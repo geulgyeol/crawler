@@ -31,10 +31,10 @@ int main() {
     blogWritingLinkForProfileSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_PROFILE_SUB_ID))));
     blogWritingLinkForContentSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_CONTENT_SUB_ID))));
 
-    //Publish(*blogProfilePublisher, { "Nhaesung_88" }, ORDERING_KEY);
-    //Publish(*blogProfilePublisher, { "Tnelastory" }, ORDERING_KEY);
-    //Publish(*blogProfilePublisher, { "N1_do_everything" }, ORDERING_KEY);
-    //Publish(*blogProfilePublisher, { "Tmungdenson" }, ORDERING_KEY);
+    //Publish(*blogProfilePublisher, { "Nhaesung_88" });
+    //Publish(*blogProfilePublisher, { "Tnelastory" });
+    //Publish(*blogProfilePublisher, { "N1_do_everything" });
+    //Publish(*blogProfilePublisher, { "Tmungdenson" });
 
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
@@ -136,7 +136,7 @@ int main() {
                     cout << "\n";
 
                     if (RegisterLink(curl, "LinkFinder_" + link_t)) {
-                        Publish(*blogWritingPublisher, validPages, ORDERING_KEY);
+                        Publish(*blogWritingPublisher, validPages);
                     }
                     
                     Delay(DELAY_MILLI_N);
@@ -278,7 +278,7 @@ int main() {
                             curl_multi_cleanup(multi_handle);
 
                             if (RegisterLink(curl, "LinkFinder_" + link_t)) {
-                                Publish(*blogWritingPublisher, validPages, ORDERING_KEY);
+                                Publish(*blogWritingPublisher, validPages);
                             }
 
                             Delay(DELAY_MILLI_N);

@@ -31,11 +31,11 @@ int main() {
     blogWritingLinkForProfileSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_PROFILE_SUB_ID))));
     blogWritingLinkForContentSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_CONTENT_SUB_ID))));
 
-    //Publish(*blogWritingPublisher, { "Nhaesung_88/223597388359" }, ORDERING_KEY);
-    //Publish(*blogWritingPublisher, { "Tlsas4565/8838853" }, ORDERING_KEY);
-    //Publish(*blogWritingPublisher, { "Tlsas4565/8838853" }, ORDERING_KEY);
-    //Publish(*blogWritingPublisher, { "Tnelastory/35" }, ORDERING_KEY);
-    //Publish(*blogWritingPublisher, { "Tnelastory/37" }, ORDERING_KEY);
+    //Publish(*blogWritingPublisher, { "Nhaesung_88/223597388359" });
+    //Publish(*blogWritingPublisher, { "Tlsas4565/8838853" });
+    //Publish(*blogWritingPublisher, { "Tlsas4565/8838853" });
+    //Publish(*blogWritingPublisher, { "Tnelastory/35" });
+    //Publish(*blogWritingPublisher, { "Tnelastory/37" });
 
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
@@ -127,7 +127,7 @@ int main() {
                         }
                     }
 
-                    Publish(*blogProfilePublisher, blogIds, ORDERING_KEY, registerChecker);
+                    Publish(*blogProfilePublisher, blogIds, registerChecker);
                     Delay(DELAY_MILLI_N);
                 }
                 else if (link[0] == 'T') {
@@ -193,7 +193,7 @@ int main() {
                         }
                     }
 
-                    Publish(*blogProfilePublisher, blogHomepages, ORDERING_KEY, registerChecker);
+                    Publish(*blogProfilePublisher, blogHomepages, registerChecker);
                     Delay(DELAY_MILLI_T);
                 }
 

@@ -10,7 +10,6 @@ Config::Config() :
     PROFILE_SUB_ID("s2-blogProfileSub"),
     WRITING_FOR_PROFILE_SUB_ID("s2-blogWritingLinkForProfileSub"),
     WRITING_FOR_CONTENT_SUB_ID("s2-blogWritingLinkForContentSub"),
-    ORDERING_KEY("ordering_key"),
     CRAWLER_NAME("geulgyeol-crawler"),
     USER_AGENT("User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0; compatible; " + CRAWLER_NAME + "/2.0; +https://github.com/geulgyeol) Gecko/20100101 Firefox/145.0"),
     LINK_KV_ENDPOINT("link-kv.default.svc.cluster.local"), //

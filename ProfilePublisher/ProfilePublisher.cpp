@@ -68,7 +68,7 @@ int main() {
             }
         }
 
-        Publish(*blogProfilePublisher, profiles, ORDERING_KEY, registerChecker);
+        Publish(*blogProfilePublisher, profiles, registerChecker);
 
         cout << "\n";
 

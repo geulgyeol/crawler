@@ -36,8 +36,6 @@ const string PROFILE_SUB_ID = config.PROFILE_SUB_ID;
 const string WRITING_FOR_PROFILE_SUB_ID = config.WRITING_FOR_PROFILE_SUB_ID;
 const string WRITING_FOR_CONTENT_SUB_ID = config.WRITING_FOR_CONTENT_SUB_ID;
 
-const string ORDERING_KEY = config.ORDERING_KEY;
-
 const string CRAWLER_NAME = config.CRAWLER_NAME;
 
 const string USER_AGENT = config.USER_AGENT;
@@ -96,7 +94,7 @@ void Delay(char blogType, const int DELAY_MILLI_N, const int DELAY_MILLI_T) {
     }
 }
 
-void Publish(pubsub::Publisher publisher, vector<string> contents, string orderingKey = "", vector<bool> checker = {}) try {
+void Publish(pubsub::Publisher publisher, vector<string> contents, vector<bool> checker = {}) try {
     vector<google::cloud::future<google::cloud::StatusOr<string>>> futures;
 
     for (int i = 0; i < contents.size(); i++) {
@@ -106,21 +104,11 @@ void Publish(pubsub::Publisher publisher, vector<string> contents, string orderi
 
         const string content = contents[i];
         futures.push_back(
-            ((orderingKey == "") ? 
-                publisher.Publish(
-                    pubsub::MessageBuilder{}
-                    .SetData(content)
-                    .Build()
-                )
-                :
-                publisher.Publish(
-                    pubsub::MessageBuilder{}
-                    .SetData(content)
-                    .SetOrderingKey(orderingKey)
-                    .Build()
-                )
-            )
-        );
+            publisher.Publish(
+                pubsub::MessageBuilder{}
+                .SetData(content)
+                .Build()
+        ));
     }
 
     for (int i = 0; i < futures.size(); ++i) {
