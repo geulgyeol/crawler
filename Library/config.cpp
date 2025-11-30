@@ -15,7 +15,7 @@ Config::Config() :
     LINK_KV_ENDPOINT("link-kv.default.svc.cluster.local"), //
     HTML_STORAGE_ENDPOINT("html-storage.default.svc.cluster.local"), //
     MAX_CONCURRENT_REQUESTS(10),
-    DEFAULT_SUB_WAITING_TIME(5),
+    DEFAULT_SUB_WAITING_TIME(30),
     ROBOTS_CACHE_DURATION_SECONDS(3600),
     MAX_ROBOTS_CACHE_SIZE(100),
     ENABLE_DB_UPLOAD(true)
