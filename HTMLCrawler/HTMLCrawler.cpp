@@ -162,6 +162,10 @@ int main() {
                     }
                     else {
                         cerr << "FAILED for [" << link << "] (Code: " << response_code << "). Error: " << curl_easy_strerror(msg->data.result) << endl;
+
+                        if (blogWritingPublisher) {
+                            Publish(*blogWritingPublisher, { link });
+                        }
                     }
 
                     if (ENABLE_DB_UPLOAD) {
