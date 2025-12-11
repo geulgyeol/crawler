@@ -4,7 +4,6 @@
 #include "google/cloud/pubsub/publisher.h"
 #include "google/cloud/pubsub/subscriber.h"
 #include "../Library/config.h"
-#include <iostream>
 #include <limits>
 #include <string>
 #include <thread>
@@ -17,6 +16,7 @@
 #include <atomic>
 #include <sstream>
 #include <iomanip>
+#include <queue>
 
 
 using namespace std;
@@ -46,12 +46,18 @@ const string HTML_STORAGE_ENDPOINT = config.HTML_STORAGE_ENDPOINT;
 const int MAX_CONCURRENT_REQUESTS = config.MAX_CONCURRENT_REQUESTS;
 const int DEFAULT_SUB_WAITING_TIME = config.DEFAULT_SUB_WAITING_TIME;
 
+const int ENABLE_MESSAGE_QUEUE_THRESHOLD = config.ENABLE_MESSAGE_QUEUE_THRESHOLD;
+const int DISABLE_MESSAGE_QUEUE_THRESHOLD = config.DISABLE_MESSAGE_QUEUE_THRESHOLD;
+
 const long long ROBOTS_CACHE_DURATION_SECONDS = config.ROBOTS_CACHE_DURATION_SECONDS;
 const size_t MAX_ROBOTS_CACHE_SIZE = config.MAX_ROBOTS_CACHE_SIZE;
 
 const bool ENABLE_DB_UPLOAD = config.ENABLE_DB_UPLOAD;
 
 map<const string, const int> CRAWL_PER_SECOND_MAP = config.CRAWL_PER_SECOND_MAP;
+
+mutex messageQueueMutex;
+mutex subscribeEnabledMutex;
 
 
 struct RobotsRules {
@@ -127,72 +133,67 @@ catch (google::cloud::Status const& status) {
 }
 
 
-vector<string> Subscribe(pubsub::Subscriber subscriber, const int messageCnt, const int waitingTime = DEFAULT_SUB_WAITING_TIME) try {
-    cout << "Listening for messages on subscription" << endl;
+void Subscribe(pubsub::Subscriber subscriber, queue<string> *messageQueue, bool *subscribeEnabled, const int waitingTime = DEFAULT_SUB_WAITING_TIME) try {
+    while (true) {
+        {
+            lock_guard<mutex> lock(subscribeEnabledMutex);
+            if (messageQueue->empty() || messageQueue->size() < ENABLE_MESSAGE_QUEUE_THRESHOLD) {
+                *subscribeEnabled = true;
+            }
+        }
 
-    vector<string> messages = vector<string>(messageCnt);
-    atomic<int> cnt{ 0 };
+        bool is_enabled;
+        {
+            lock_guard<mutex> lock(subscribeEnabledMutex);
+            is_enabled = *subscribeEnabled;
+        }
+        
+        if (is_enabled) {
+            cout << "Listening for messages on subscription" << endl;
 
-    promise<void> shutdown_promise;
-    auto shutdown_future = shutdown_promise.get_future();
-
-    auto session = subscriber.Subscribe(
-        [&](pubsub::Message const& m, pubsub::AckHandler h) {
-
-            if (cnt < messageCnt) {
-                int current_index = cnt.fetch_add(1);
-
-                if (current_index < messageCnt) {
-                    messages[current_index] = m.data();
+            auto session = subscriber.Subscribe(
+                [&](pubsub::Message const& m, pubsub::AckHandler h) {
                     move(h).ack();
-                    cout << " # Received message: " << m.data() << " at index " << current_index << "\n";
+                    
+                    {
+                        lock_guard<mutex> lock(messageQueueMutex);
+                        messageQueue->push(m.data());
+                    }
 
-                    if (cnt.load() == messageCnt) {
-                        try {
-                            shutdown_promise.set_value();
-                        }
-                        catch (...) {
-                            
+                    cout << " # Received message: " << m.data() << "\n";
+
+                    try {
+                        lock_guard<mutex> lock_q(subscribeEnabledMutex);
+                        lock_guard<mutex> lock_e(messageQueueMutex);
+
+                        if (!messageQueue->empty() && messageQueue->size() > DISABLE_MESSAGE_QUEUE_THRESHOLD) {
+                            *subscribeEnabled = false;
                         }
                     }
+                    catch (exception e) {
+                        lock_guard<mutex> lock(subscribeEnabledMutex);
+                        *subscribeEnabled = false;
+                    }
                 }
-                else {
-                    move(h).nack();
-                }
+            );
+
+            bool still_enabled = true;
+            while (still_enabled) {
+                Delay(100);
+                lock_guard<mutex> lock(subscribeEnabledMutex);
+                still_enabled = *subscribeEnabled;
             }
-            else {
-                move(h).nack();
-            }
-        });
 
-    cout << "Waiting for " << messageCnt << " messages or " << waitingTime << " seconds..." << endl;
-
-    auto status = shutdown_future.wait_for(chrono::seconds(waitingTime));
-
-    session.cancel();
-    auto session_status = session.get();
-    cout << "session End, status = " << session_status << "\n";
-
-    if (status == future_status::timeout) {
-        int received_count = cnt.load();
-
-        if (received_count == 0) {
-            cout << "Timeout: No messages received. Returning first index to '" + TIMEOUTED + "'.\n\n";
-            messages[0] = TIMEOUTED;
+            session.cancel();
+            auto session_status = session.get();
+            cout << "session End, status = " << session_status << "\n";
         }
-        else {
-            cout << "Timeout: Only " << received_count << " messages received. Returning partial result.\n";
-        }
-    }
-    else {
-        cout << "Success: All " << messageCnt << " messages received within the time limit.\n";
-    }
 
-    return messages;
+        Delay(100);
+    }
 }
 catch (google::cloud::Status const& status) {
     cerr << "google::cloud::Status thrown: " << status << "\n";
-    return vector<string>();
 }
 
 

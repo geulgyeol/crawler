@@ -30,6 +30,9 @@ public:
 	
 	const int DEFAULT_SUB_WAITING_TIME;					// Default Subscription Waiting Time
 
+	const int ENABLE_MESSAGE_QUEUE_THRESHOLD;
+	const int DISABLE_MESSAGE_QUEUE_THRESHOLD;
+
 	const long long ROBOTS_CACHE_DURATION_SECONDS;		// robots.txt Cache Refresh Duration
 	const size_t MAX_ROBOTS_CACHE_SIZE;					// robots.txt Cache Max Count Limit (If exceeded limit, clear all cathy)
 
