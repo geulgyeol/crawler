@@ -152,10 +152,10 @@ int main() {
             continue;
         }
 
-            if (running_handles > 0) {
-                int numfds = 0;
-                CURLMcode mc = curl_multi_wait(multi_handle, NULL, 0, 100, &numfds);
-                if (mc != CURLM_OK) break;
+        if (running_handles > 0) {
+            int numfds = 0;
+            CURLMcode mc = curl_multi_wait(multi_handle, NULL, 0, 100, &numfds);
+            if (mc != CURLM_OK) break;
 
             mc = curl_multi_perform(multi_handle, &running_handles);
             if (mc != CURLM_OK) break;
