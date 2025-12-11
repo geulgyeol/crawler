@@ -121,6 +121,8 @@ int main() {
     int links_index = 0;
     int cnt = 0;
 
+    map<string, string> bodies;
+
     while (true) {
         string link_to_process = "";
         bool is_empty;
@@ -195,7 +197,7 @@ int main() {
                         string db_link = link;
                         db_link.replace(pos, 1, "%20");
                         if (RegisterLink(curl, "Crawler_" + db_link)) {
-                            PostHTMLContent(curl, db_link.substr(1), Body);
+                            bodies.insert({ db_link.substr(1), Body });
                         }
                     }
                 }
@@ -215,14 +217,10 @@ int main() {
             headersList.clear();
         }
 
-        /*int messageQueueSize = 0;
-        {
-            std::lock_guard<std::mutex> lock(messageQueueMutex);
-            if (!messageQueue.empty()) {
-                messageQueueSize = messageQueue.size();
-            }
-        }
-        cout << "current message queue size : " << messageQueueSize << "\n";*/
+        if (bodies.empty() || bodies.size() < BODIES_THRESHOLD) continue;
+        thread postHTMLContentThread(PostHTMLContent, bodies);
+        postHTMLContentThread.detach();
+        bodies.clear();
     }
 
     if (curl) {
