@@ -24,7 +24,7 @@ queue<string> messageQueue;
 bool subscribeEnabled = false;
 
 
-vector<struct curl_slist*> headersList;
+map<CURL*, struct curl_slist*> headersMap;
 
 CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& buffers, map<CURL*, string>& link_data, CURL* curl) {
     if (link.empty()) return nullptr;
@@ -67,7 +67,11 @@ CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& 
         return nullptr;
     }
 
-    headersList.push_back(SetCURL(eh, readBuffer, url));
+    struct curl_slist* headers = SetCURL(eh, readBuffer, url);
+
+    if (headers) {
+        headersMap.insert({ eh, headers });
+    }
 
     curl_multi_add_handle(multi_handle, eh);
     buffers[eh] = readBuffer;
@@ -202,19 +206,18 @@ int main() {
                     }
                 }
 
+                auto it = headersMap.find(eh);
+                if (it != headersMap.end()) {
+                    curl_slist_free_all(it->second);
+                    headersMap.erase(it);
+                }
+
                 delete buffer;
                 buffers.erase(eh);
                 link_data.erase(eh);
                 curl_multi_remove_handle(multi_handle, eh);
                 curl_easy_cleanup(eh);
             }
-        }
-
-        if (!headersList.empty() && buffers.empty()) {
-            for (size_t j = 0; j < headersList.size(); j++) {
-                curl_slist_free_all(headersList[j]);
-            }
-            headersList.clear();
         }
 
         if (bodies.empty() || bodies.size() < BODIES_THRESHOLD) continue;
