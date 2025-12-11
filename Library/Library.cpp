@@ -4,7 +4,6 @@
 #include "google/cloud/pubsub/publisher.h"
 #include "google/cloud/pubsub/subscriber.h"
 #include "../Library/config.h"
-#include <iostream>
 #include <limits>
 #include <string>
 #include <thread>
@@ -17,6 +16,7 @@
 #include <atomic>
 #include <sstream>
 #include <iomanip>
+#include <queue>
 
 
 using namespace std;
@@ -44,7 +44,13 @@ const string LINK_KV_ENDPOINT = config.LINK_KV_ENDPOINT;
 const string HTML_STORAGE_ENDPOINT = config.HTML_STORAGE_ENDPOINT;
 
 const int MAX_CONCURRENT_REQUESTS = config.MAX_CONCURRENT_REQUESTS;
+
+const int BODIES_THRESHOLD = config.BODIES_THRESHOLD;
+
 const int DEFAULT_SUB_WAITING_TIME = config.DEFAULT_SUB_WAITING_TIME;
+
+const int ENABLE_MESSAGE_QUEUE_THRESHOLD = config.ENABLE_MESSAGE_QUEUE_THRESHOLD;
+const int DISABLE_MESSAGE_QUEUE_THRESHOLD = config.DISABLE_MESSAGE_QUEUE_THRESHOLD;
 
 const long long ROBOTS_CACHE_DURATION_SECONDS = config.ROBOTS_CACHE_DURATION_SECONDS;
 const size_t MAX_ROBOTS_CACHE_SIZE = config.MAX_ROBOTS_CACHE_SIZE;
@@ -52,6 +58,9 @@ const size_t MAX_ROBOTS_CACHE_SIZE = config.MAX_ROBOTS_CACHE_SIZE;
 const bool ENABLE_DB_UPLOAD = config.ENABLE_DB_UPLOAD;
 
 map<const string, const int> CRAWL_PER_SECOND_MAP = config.CRAWL_PER_SECOND_MAP;
+
+mutex messageQueueMutex;
+mutex subscribeEnabledMutex;
 
 
 struct RobotsRules {
@@ -73,6 +82,32 @@ struct RobotsCacheEntry {
 
 mutex globalRobotsCacheMapMutex;
 map<string, RobotsCacheEntry> robotsCacheMap;
+
+struct RequestData {
+    string link;
+    string body;
+    string readBuffer;
+    struct curl_slist* headers;
+
+    ~RequestData() {
+        if (headers) {
+            curl_slist_free_all(headers);
+        }
+    }
+
+    RequestData(RequestData&& other) noexcept
+        : link(std::move(other.link)),
+        body(std::move(other.body)),
+        readBuffer(std::move(other.readBuffer)),
+        headers(other.headers) {
+        other.headers = nullptr;
+    }
+
+    RequestData() : headers(nullptr) {}
+
+    RequestData(const RequestData&) = delete;
+    RequestData& operator=(const RequestData&) = delete;
+};
 
 
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
@@ -127,72 +162,68 @@ catch (google::cloud::Status const& status) {
 }
 
 
-vector<string> Subscribe(pubsub::Subscriber subscriber, const int messageCnt, const int waitingTime = DEFAULT_SUB_WAITING_TIME) try {
-    cout << "Listening for messages on subscription" << endl;
+void Subscribe(pubsub::Subscriber subscriber, queue<string> *messageQueue, bool *subscribeEnabled, const int waitingTime = DEFAULT_SUB_WAITING_TIME) try {
+    while (true) {
+        {
+            lock_guard<mutex> lock(subscribeEnabledMutex);
+            if (messageQueue->empty() || messageQueue->size() < ENABLE_MESSAGE_QUEUE_THRESHOLD) {
+                *subscribeEnabled = true;
+            }
+        }
 
-    vector<string> messages = vector<string>(messageCnt);
-    atomic<int> cnt{ 0 };
+        bool is_enabled;
+        {
+            lock_guard<mutex> lock(subscribeEnabledMutex);
+            is_enabled = *subscribeEnabled;
+        }
+        
+        if (is_enabled) {
+            cout << "Listening for messages on subscription" << endl;
 
-    promise<void> shutdown_promise;
-    auto shutdown_future = shutdown_promise.get_future();
-
-    auto session = subscriber.Subscribe(
-        [&](pubsub::Message const& m, pubsub::AckHandler h) {
-
-            if (cnt < messageCnt) {
-                int current_index = cnt.fetch_add(1);
-
-                if (current_index < messageCnt) {
-                    messages[current_index] = m.data();
+            auto session = subscriber.Subscribe(
+                [&](pubsub::Message const& m, pubsub::AckHandler h) {
                     move(h).ack();
-                    cout << " # Received message: " << m.data() << " at index " << current_index << "\n";
+                    
+                    {
+                        lock_guard<mutex> lock(messageQueueMutex);
+                        messageQueue->push(m.data());
+                    }
 
-                    if (cnt.load() == messageCnt) {
-                        try {
-                            shutdown_promise.set_value();
-                        }
-                        catch (...) {
-                            
+                    string receiveMessage = " # Received message: " + m.data() + "\n";
+                    cout << receiveMessage;
+
+                    try {
+                        lock_guard<mutex> lock_q(subscribeEnabledMutex);
+                        lock_guard<mutex> lock_e(messageQueueMutex);
+
+                        if (!messageQueue->empty() && messageQueue->size() > DISABLE_MESSAGE_QUEUE_THRESHOLD) {
+                            *subscribeEnabled = false;
                         }
                     }
+                    catch (exception e) {
+                        lock_guard<mutex> lock(subscribeEnabledMutex);
+                        *subscribeEnabled = false;
+                    }
                 }
-                else {
-                    move(h).nack();
-                }
+            );
+
+            bool still_enabled = true;
+            while (still_enabled) {
+                Delay(100);
+                lock_guard<mutex> lock(subscribeEnabledMutex);
+                still_enabled = *subscribeEnabled;
             }
-            else {
-                move(h).nack();
-            }
-        });
 
-    cout << "Waiting for " << messageCnt << " messages or " << waitingTime << " seconds..." << endl;
-
-    auto status = shutdown_future.wait_for(chrono::seconds(waitingTime));
-
-    session.cancel();
-    auto session_status = session.get();
-    std::cout << "session End, status = " << session_status << "\n";
-
-    if (status == future_status::timeout) {
-        int received_count = cnt.load();
-
-        if (received_count == 0) {
-            cout << "Timeout: No messages received. Returning first index to '" + TIMEOUTED + "'.\n\n";
-            messages[0] = TIMEOUTED;
+            session.cancel();
+            auto session_status = session.get();
+            cout << "session End, status = " << session_status << "\n";
         }
-        else {
-            cout << "Timeout: Only " << received_count << " messages received. Returning partial result.\n";
-        }
-    }
-    else {
-        cout << "Success: All " << messageCnt << " messages received within the time limit.\n";
-    }
 
-    return messages;
+        Delay(100);
+    }
 }
 catch (google::cloud::Status const& status) {
     cerr << "google::cloud::Status thrown: " << status << "\n";
-    return vector<string>();
 }
 
 
@@ -515,32 +546,80 @@ bool RegisterLink(CURL* curl, const string link) {
     return httpCode == 201;
 }
 
-bool PostHTMLContent(CURL* curl, const string link, const string Body) {
-    string url = config.HTML_STORAGE_ENDPOINT + "/" + link;
-    string readBuffer;
-    struct curl_slist* headers = NULL;
+void PostHTMLContent(const map<string, string> bodies) {
+    if (bodies.empty()) return;
 
-    curl_easy_reset(curl);
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, Body.c_str());
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, Body.length());
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-
-    headers = curl_slist_append(headers, config.USER_AGENT.c_str());
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-    long httpCode = 0;
-    CURLcode res = curl_easy_perform(curl);
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
-    curl_slist_free_all(headers);
-
-    if (res != CURLE_OK) {
-        cerr << "HTML POST failed for [" << link << "]: " << curl_easy_strerror(res) << endl;
-        return false;
+    CURLM* multi_handle = curl_multi_init();
+    if (!multi_handle) {
+        cerr << "Failed to initialize CURL multi handle." << endl;
+        return;
     }
 
-    return httpCode == 200;
+    map<CURL*, unique_ptr<RequestData>> requests;
+
+    for (const auto& entry : bodies) {
+        CURL* eh = curl_easy_init();
+        if (!eh) {
+            cerr << "Failed to initialize CURL easy handle." << endl;
+            continue;
+        }
+
+        auto data = make_unique<RequestData>();
+        data->link = entry.first;
+        data->body = entry.second;
+
+        string url = config.HTML_STORAGE_ENDPOINT + "/" + data->link;
+
+        curl_easy_setopt(eh, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(eh, CURLOPT_CUSTOMREQUEST, "POST");
+        curl_easy_setopt(eh, CURLOPT_POSTFIELDS, data->body.c_str());
+        curl_easy_setopt(eh, CURLOPT_POSTFIELDSIZE, data->body.length());
+        curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(eh, CURLOPT_WRITEDATA, &data->readBuffer);
+
+        data->headers = curl_slist_append(data->headers, config.USER_AGENT.c_str());
+        data->headers = curl_slist_append(data->headers, "Content-Type: application/json");
+        curl_easy_setopt(eh, CURLOPT_HTTPHEADER, data->headers);
+
+        curl_multi_add_handle(multi_handle, eh);
+
+        requests[eh] = move(data);
+    }
+
+    int still_running = 0;
+    curl_multi_perform(multi_handle, &still_running);
+
+    while (still_running) {
+        int numfds = 0;
+        CURLMcode mc = curl_multi_wait(multi_handle, NULL, 0, 100, &numfds);
+        if (mc != CURLM_OK) break;
+
+        curl_multi_perform(multi_handle, &still_running);
+    }
+
+    CURLMsg* msg;
+    int msgs_left;
+    while ((msg = curl_multi_info_read(multi_handle, &msgs_left))) {
+        if (msg->msg == CURLMSG_DONE) {
+            CURL* eh = msg->easy_handle;
+
+            const auto& data = requests[eh];
+            long response_code;
+            curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &response_code);
+
+            if (msg->data.result == CURLE_OK && response_code < 400) {
+                cout << "HTML POST success for [" << data->link << "] (Code: " << response_code << ").\n";
+            }
+            else {
+                cerr << "HTML POST FAILED for [" << data->link << "] (Code: " << response_code << "). Error: " << curl_easy_strerror(msg->data.result) << endl;
+            }
+
+            curl_multi_remove_handle(multi_handle, eh);
+            curl_easy_cleanup(eh);
+
+            requests.erase(eh);
+        }
+    }
+
+    curl_multi_cleanup(multi_handle);
 }

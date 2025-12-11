@@ -19,7 +19,12 @@ unique_ptr<pubsub::Subscriber> blogProfileSubscriber;
 unique_ptr<pubsub::Subscriber> blogWritingLinkForProfileSubscriber;
 unique_ptr<pubsub::Subscriber> blogWritingLinkForContentSubscriber;
 
-vector<struct curl_slist*> headersList;
+
+queue<string> messageQueue;
+bool subscribeEnabled = false;
+
+
+map<CURL*, struct curl_slist*> headersMap;
 
 CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& buffers, map<CURL*, string>& link_data, CURL* curl) {
     if (link.empty()) return nullptr;
@@ -62,7 +67,11 @@ CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& 
         return nullptr;
     }
 
-    headersList.push_back(SetCURL(eh, readBuffer, url));
+    struct curl_slist* headers = SetCURL(eh, readBuffer, url);
+
+    if (headers) {
+        headersMap.insert({ eh, headers });
+    }
 
     curl_multi_add_handle(multi_handle, eh);
     buffers[eh] = readBuffer;
@@ -110,108 +119,115 @@ int main() {
     map<CURL*, string*> buffers;
     map<CURL*, string> link_data;
 
+    thread htmlCrawlerSubscribeThread(Subscribe, move(*blogWritingLinkForContentSubscriber), &messageQueue, &subscribeEnabled, DEFAULT_SUB_WAITING_TIME);
+    htmlCrawlerSubscribeThread.detach();
+
     int links_index = 0;
     int cnt = 0;
 
+    map<string, string> bodies;
+
     while (true) {
-        vector<string> links = Subscribe(*blogWritingLinkForContentSubscriber, 100);
+        string link_to_process = "";
+        bool is_empty;
+        {
+            lock_guard<mutex> lock(messageQueueMutex);
+            is_empty = messageQueue.empty();
+            if (!is_empty) {
+                link_to_process = messageQueue.front();
+                messageQueue.pop();
+            }
+        } 
 
-        if (links[0] == TIMEOUTED) {
-            if (buffers.empty()) continue;
-            links.clear();
-            links_index = 0;
+        int running_handles = buffers.size();
+
+        if (!is_empty) {
+
+            int current_delay = (link_to_process[0] == 'N') ? DELAY_MILLI_N : DELAY_MILLI_T;
+
+            CURL* eh = CreateHandle(multi_handle, link_to_process, buffers, link_data, curl);
+
+            if (eh) {
+                curl_multi_perform(multi_handle, &running_handles);
+            }
+
+            Delay(current_delay);
         }
-        else {
-            links_index = 0;
+        else if (is_empty && running_handles == 0) {
+            Delay(100);
+            continue;
         }
 
-        int running_handles = 0;
+        if (running_handles > 0) {
+            int numfds = 0;
+            CURLMcode mc = curl_multi_wait(multi_handle, NULL, 0, 100, &numfds);
+            if (mc != CURLM_OK) break;
 
-        while (links_index < links.size() || running_handles > 0) {
+            mc = curl_multi_perform(multi_handle, &running_handles);
+            if (mc != CURLM_OK) break;
+        }
 
-            while (running_handles < MAX_CONCURRENT_REQUESTS && links_index < links.size()) {
-                CURL* eh = CreateHandle(multi_handle, links[links_index], buffers, link_data, curl);
-                if (eh) {
-                    curl_multi_perform(multi_handle, &running_handles);
+        CURLMsg* msg;
+        int msgs_left;
+        while ((msg = curl_multi_info_read(multi_handle, &msgs_left))) {
+            if (msg->msg == CURLMSG_DONE) {
+                CURL* eh = msg->easy_handle;
+
+                string* buffer = buffers[eh];
+                string link = link_data[eh];
+                long response_code;
+                curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &response_code);
+
+                if (msg->data.result == CURLE_OK && response_code < 400) {
+                    cout << "success: " << ++cnt << "\n";
                 }
-                links_index++;
-            }
+                else {
+                    cerr << "FAILED for [" << link << "] (Code: " << response_code << "). Error: " << curl_easy_strerror(msg->data.result) << endl;
 
-            if (running_handles > 0) {
-                int numfds = 0;
-                CURLMcode mc = curl_multi_wait(multi_handle, NULL, 0, 100, &numfds);
-                if (mc != CURLM_OK) break;
-
-                mc = curl_multi_perform(multi_handle, &running_handles);
-                if (mc != CURLM_OK) break;
-            }
-
-            CURLMsg* msg;
-            int msgs_left;
-            while ((msg = curl_multi_info_read(multi_handle, &msgs_left))) {
-                if (msg->msg == CURLMSG_DONE) {
-                    CURL* eh = msg->easy_handle;
-
-                    string* buffer = buffers[eh];
-                    string link = link_data[eh];
-                    long response_code;
-                    curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &response_code);
-
-                    if (msg->data.result == CURLE_OK && response_code < 400) {
-                        cout << "success: " << ++cnt << "\n";
+                    if (blogWritingPublisher) {
+                        Publish(*blogWritingPublisher, { link });
                     }
-                    else {
-                        cerr << "FAILED for [" << link << "] (Code: " << response_code << "). Error: " << curl_easy_strerror(msg->data.result) << endl;
-
-                        if (blogWritingPublisher) {
-                            Publish(*blogWritingPublisher, { link });
-                        }
-                    }
-
-                    if (ENABLE_DB_UPLOAD) {
-                        string Body;
-
-                        Body.append("{\"body\":\"" + EscapeQuotes(*buffer) + "\",\"blog\":\"");
-                        if (!link.empty() && link[0] == 'N') {
-                            Body.append("naver");
-                        }
-                        else if (!link.empty() && link[0] == 'T') {
-                            Body.append("tistory");
-                        }
-                        Body.append("\",\"timestamp\":" + to_string(chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count()) + "}");
-
-                        size_t pos = link.find('/');
-                        if (pos != string::npos) {
-                            link.replace(pos, 1, "%20");
-                            if (RegisterLink(curl, "Crawler_" + link)) {
-                                PostHTMLContent(curl, link.substr(1), Body);
-                            }
-                        }
-                    }
-
-                    delete buffer;
-                    buffers.erase(eh);
-                    link_data.erase(eh);
-                    curl_multi_remove_handle(multi_handle, eh);
-                    curl_easy_cleanup(eh);
-
-                    Delay(link[0], DELAY_MILLI_N, DELAY_MILLI_T);
                 }
-            }
 
-            if (links_index >= links.size() && running_handles == 0) {
-                break;
+                if (ENABLE_DB_UPLOAD) {
+                    string Body;
+                    Body.append("{\"body\":\"" + EscapeQuotes(*buffer) + "\",\"blog\":\"");
+                    if (!link.empty() && link[0] == 'N') {
+                        Body.append("naver");
+                    }
+                    else if (!link.empty() && link[0] == 'T') {
+                        Body.append("tistory");
+                    }
+                    Body.append("\",\"timestamp\":" + to_string(chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count()) + "}");
+
+                    size_t pos = link.find('/');
+                    if (pos != string::npos) {
+                        string db_link = link;
+                        db_link.replace(pos, 1, "%20");
+                        if (RegisterLink(curl, "Crawler_" + db_link)) {
+                            bodies.insert({ db_link.substr(1), Body });
+                        }
+                    }
+                }
+
+                auto it = headersMap.find(eh);
+                if (it != headersMap.end()) {
+                    curl_slist_free_all(it->second);
+                    headersMap.erase(it);
+                }
+
+                delete buffer;
+                buffers.erase(eh);
+                link_data.erase(eh);
+                curl_multi_remove_handle(multi_handle, eh);
+                curl_easy_cleanup(eh);
             }
         }
 
-        if (!headersList.empty()) {
-            for (int j = 0; j < headersList.size(); j++) {
-                curl_slist_free_all(headersList[j]);
-            }
-            headersList.clear();
-        }
-
-        cout << "All links processed for this batch. Total remaining handles: " << buffers.size() << endl;
+        if (bodies.empty() || bodies.size() < BODIES_THRESHOLD) continue;
+        thread postHTMLContentThread(PostHTMLContent, bodies);
+        postHTMLContentThread.detach();
+        bodies.clear();
     }
 
     if (curl) {
