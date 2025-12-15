@@ -241,26 +241,9 @@ void Subscribe(pubsub::Subscriber subscriber, queue<string> *messageQueue, bool 
                 still_enabled = *subscribeEnabled;
             }
 
-<<<<<<< HEAD
-    cout << "Waiting for " << messageCnt << " messages or " << waitingTime << " seconds..." << endl;
-
-    auto status = shutdown_future.wait_for(chrono::seconds(waitingTime));
-
-    session.cancel();
-    auto session_status = session.get();
-    std::cout << "session End, status = " << session_status << "\n";
-
-    if (status == future_status::timeout) {
-        int received_count = cnt.load();
-
-        if (received_count == 0) {
-            cout << "Timeout: No messages received. Returning first index to '" + TIMEOUTED + "'.\n\n";
-            messages[0] = TIMEOUTED;
-=======
             session.cancel();
             auto session_status = session.get();
             cout << "session End, status = " << session_status << "\n";
->>>>>>> master
         }
 
         Delay(100, "subscribe");
@@ -765,10 +748,5 @@ bool DeleteFromStorage(CURL* curl, const string link, const string storage) { //
         return false;
     }
 
-<<<<<<< HEAD
-    return httpCode == 200;
-}
-=======
     return httpCode == 201;
 }
->>>>>>> master
