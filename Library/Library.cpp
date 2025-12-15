@@ -59,8 +59,13 @@ const bool ENABLE_DB_UPLOAD = config.ENABLE_DB_UPLOAD;
 
 map<const string, const int> CRAWL_PER_SECOND_MAP = config.CRAWL_PER_SECOND_MAP;
 
+map<string, chrono::steady_clock::time_point> lastTimes;
+
+
+
 mutex messageQueueMutex;
 mutex subscribeEnabledMutex;
+mutex lastTimesMutex;
 
 
 struct RobotsRules {
@@ -114,19 +119,40 @@ struct RequestData {
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
 bool IsAllowedByRobotsGeneral(const string& fullUrl);
 
-void Delay(int milliseconds) {
-    this_thread::sleep_for(chrono::milliseconds(milliseconds));
+void Delay(int milliseconds, string thread) {
+    chrono::steady_clock::time_point lastTime;
+    {
+        lock_guard<mutex> lock(subscribeEnabledMutex);
+        if (lastTimes.find(thread) == lastTimes.end()) {
+            lastTimes.insert({ thread, chrono::steady_clock::now() });
+        }
+        lastTime = lastTimes[thread];
+    }
+
+    while (chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - lastTime).count() < milliseconds) {
+        string result = to_string(chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now().time_since_epoch() - lastTime.time_since_epoch()).count()) + " / " + to_string(chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now().time_since_epoch()).count()) + " / " + to_string(chrono::duration_cast<chrono::milliseconds>(lastTime.time_since_epoch()).count()) + "\n";
+        this_thread::sleep_for(chrono::milliseconds(5));
+        continue;
+    }
+
+    if (thread == "main") {
+        //cout << chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - lastTime).count() << "ms in main thread\n";
+    }
+
+    lastTimes[thread] = chrono::steady_clock::now();
+    
+    //this_thread::sleep_for(chrono::milliseconds(milliseconds));
 }
 
-void Delay(char blogType, const int DELAY_MILLI_N, const int DELAY_MILLI_T) {
+void Delay(char blogType, const int DELAY_MILLI_N, const int DELAY_MILLI_T, string thread) {
     if (blogType == 'N') {
-        Delay(DELAY_MILLI_N);
+        Delay(DELAY_MILLI_N, thread);
     }
     else if (blogType == 'T') {
-        Delay(DELAY_MILLI_T);
+        Delay(DELAY_MILLI_T, thread);
     }
     else {
-        Delay(max(DELAY_MILLI_N, DELAY_MILLI_T));
+        Delay(max(DELAY_MILLI_N, DELAY_MILLI_T), thread);
     }
 }
 
@@ -210,7 +236,7 @@ void Subscribe(pubsub::Subscriber subscriber, queue<string> *messageQueue, bool 
 
             bool still_enabled = true;
             while (still_enabled) {
-                Delay(100);
+                Delay(100, "subscribe");
                 lock_guard<mutex> lock(subscribeEnabledMutex);
                 still_enabled = *subscribeEnabled;
             }
@@ -220,7 +246,7 @@ void Subscribe(pubsub::Subscriber subscriber, queue<string> *messageQueue, bool 
             cout << "session End, status = " << session_status << "\n";
         }
 
-        Delay(100);
+        Delay(100, "subscribe");
     }
 }
 catch (google::cloud::Status const& status) {

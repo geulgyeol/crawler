@@ -28,6 +28,7 @@ struct TistoryRequestData {
     int index;
 };
 
+
 int main() {
     cin.tie(NULL);
     ios::sync_with_stdio(false);
@@ -63,7 +64,7 @@ int main() {
         }
 
         if (is_empty) {
-            Delay(100);
+            Delay(100, "main");
             continue;
         }
 
@@ -152,7 +153,7 @@ int main() {
                     }
 
                     currentPage++;
-                    Delay(DELAY_MILLI_N);
+                    Delay(DELAY_MILLI_N, "main");
                 }
 
                 cout << "\n";
@@ -161,7 +162,7 @@ int main() {
                     Publish(*blogWritingPublisher, validPages);
                 }
 
-                Delay(DELAY_MILLI_N);
+                Delay(DELAY_MILLI_N, "main");
             }
             else if (link[0] == 'T') {
                 string readBuffer;
@@ -169,7 +170,7 @@ int main() {
 
                 if (!IsAllowedByRobotsGeneral(url)) {
                     cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
-                    Delay(DELAY_MILLI_T);
+                    Delay(DELAY_MILLI_T, "main");
                     curl_easy_cleanup(curl);
                     continue;
                 }
@@ -201,7 +202,7 @@ int main() {
                 if (maxIndex == 0) {
                     cout << "No post IDs found for [" << link << "].\n";
                     curl_easy_cleanup(curl);
-                    Delay(DELAY_MILLI_T);
+                    Delay(DELAY_MILLI_T, "main");
                     continue;
                 }
 
@@ -244,8 +245,7 @@ int main() {
                             curl_multi_add_handle(multi_handle, eh);
                             requests[eh] = std::move(data);
 
-                            Delay(DELAY_MILLI_T);
-
+                            Delay(DELAY_MILLI_T, "main");
                         }
                         else {
                             cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << request_url << "]\\n";
@@ -273,8 +273,23 @@ int main() {
                                 curl_easy_getinfo(eh, CURLINFO_PRIVATE, &raw_data_ptr);
 
                                 if (raw_data_ptr && requests.count(eh)) {
+                                    int titleTagOpenIndex = raw_data_ptr->buffer->find("<title>");
+                                    int titleTagCloseIndex = raw_data_ptr->buffer->find("</title>");
 
-                                    smatch matchTitle;
+                                    string htmlTitle = raw_data_ptr->buffer->substr(titleTagOpenIndex + 7, titleTagCloseIndex - titleTagOpenIndex - 7);
+
+                                    if (htmlTitle != "TISTORY") {
+                                        emptyPageCnt = 0;
+                                        validPages.push_back("T" + link.substr(1) + "/" + to_string(raw_data_ptr->index));
+                                    }
+                                    else {
+                                        emptyPageCnt++;
+                                        if (emptyPageCnt >= 20) {
+                                            currentIndex = 0;
+                                        }
+                                    }
+
+                                    /*smatch matchTitle;
                                     regex titleRegex("<title>(.*?)</title>");
                                     if (regex_search(*(raw_data_ptr->buffer), matchTitle, titleRegex)) {
                                         if (matchTitle[1].str() != "TISTORY") {
@@ -287,7 +302,7 @@ int main() {
                                                 currentIndex = 0;
                                             }
                                         }
-                                    }
+                                    }*/
 
                                     delete raw_data_ptr->buffer;
 
@@ -316,11 +331,11 @@ int main() {
                 cout << "\n# Valid Page Count : " << validPages.size() << endl;
                 curl_multi_cleanup(multi_handle);
 
-                if (RegisterLink(curl, "LinkFinder_" + link_t)) {
+                if (!ENABLE_DB_UPLOAD || RegisterLink(curl, "LinkFinder_" + link_t)) {
                     Publish(*blogWritingPublisher, validPages);
                 }
 
-                Delay(DELAY_MILLI_T);
+                Delay(DELAY_MILLI_T, "main");
             }
             cout << "\n";
         }

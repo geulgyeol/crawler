@@ -25,7 +25,11 @@ int main() {
     curl = curl_easy_init();
 
     if (curl) {
-        //DeleteFromStorage(curl, "Crawler_Nhaesung_88%20223597388359", "kv");
+        while (true) {
+            cout << "Start\n";
+            Delay(1000, "test");
+            cout << "End\n";
+        }
     }
 
     curl_global_cleanup();

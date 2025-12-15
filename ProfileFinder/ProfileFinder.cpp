@@ -65,7 +65,7 @@ int main() {
         }
 
         if (is_empty) {
-            Delay(100);
+            Delay(100, "main");
             continue;
         }
 
@@ -94,7 +94,7 @@ int main() {
 
                 if (!IsAllowedByRobotsGeneral(url)) {
                     cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
-                    Delay(DELAY_MILLI_N);
+                    Delay(DELAY_MILLI_N, "main");
                     continue;
                 }
 
@@ -132,7 +132,7 @@ int main() {
                 cout << "\n";
 
                 if (blogIds.empty()) {
-                    Delay(DELAY_MILLI_N);
+                    Delay(DELAY_MILLI_N, "main");
                     continue;
                 }
 
@@ -145,14 +145,14 @@ int main() {
                 }
 
                 Publish(*blogProfilePublisher, blogIds, registerChecker);
-                Delay(DELAY_MILLI_N);
+                Delay(DELAY_MILLI_N, "main");
             }
             else if (link[0] == 'T') {
                 string url = "https://" + profileName + ".tistory.com/m/api/" + writingNumber + "/comment";
 
                 if (!IsAllowedByRobotsGeneral(url)) {
                     cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
-                    Delay(DELAY_MILLI_T);
+                    Delay(DELAY_MILLI_T, "main");
                     continue;
                 }
 
@@ -198,7 +198,7 @@ int main() {
                 cout << "\n";
 
                 if (blogHomepages.empty()) {
-                    Delay(DELAY_MILLI_T);
+                    Delay(DELAY_MILLI_T, "main");
                     continue;
                 }
 
@@ -211,7 +211,7 @@ int main() {
                 }
 
                 Publish(*blogProfilePublisher, blogHomepages, registerChecker);
-                Delay(DELAY_MILLI_T);
+                Delay(DELAY_MILLI_T, "main");
             }
 
             cout << "\n";

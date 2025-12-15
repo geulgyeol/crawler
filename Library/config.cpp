@@ -25,10 +25,10 @@ Config::Config() :
     ENABLE_DB_UPLOAD(true)
 
 {
-    CRAWL_PER_SECOND_MAP.insert({ "LinkFinder_N", 4 });
-    CRAWL_PER_SECOND_MAP.insert({ "LinkFinder_T", 40 });
+    CRAWL_PER_SECOND_MAP.insert({ "LinkFinder_N", 3 });
+    CRAWL_PER_SECOND_MAP.insert({ "LinkFinder_T", 25 });
     CRAWL_PER_SECOND_MAP.insert({ "ProfileFinder_N", 4 });
     CRAWL_PER_SECOND_MAP.insert({ "ProfileFinder_T", 6 });
-    CRAWL_PER_SECOND_MAP.insert({ "HTMLCrawler_N", 20 });
-    CRAWL_PER_SECOND_MAP.insert({ "HTMLCrawler_T", 40 });
+    CRAWL_PER_SECOND_MAP.insert({ "HTMLCrawler_N", 15 });
+    CRAWL_PER_SECOND_MAP.insert({ "HTMLCrawler_T", 25 });
 }

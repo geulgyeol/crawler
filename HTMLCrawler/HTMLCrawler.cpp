@@ -63,7 +63,7 @@ CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& 
     if (!IsAllowedByRobotsGeneral(url)) {
         cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
         delete readBuffer;
-        Delay(link[0], DELAY_MILLI_N, DELAY_MILLI_T);
+        Delay(link[0], DELAY_MILLI_N, DELAY_MILLI_T, "main");
         return nullptr;
     }
 
@@ -129,7 +129,7 @@ int main() {
 
     while (true) {
         string link_to_process = "";
-        bool is_empty;
+        bool is_empty; 
         {
             lock_guard<mutex> lock(messageQueueMutex);
             is_empty = messageQueue.empty();
@@ -137,7 +137,7 @@ int main() {
                 link_to_process = messageQueue.front();
                 messageQueue.pop();
             }
-        } 
+        }
 
         int running_handles = buffers.size();
 
@@ -151,10 +151,10 @@ int main() {
                 curl_multi_perform(multi_handle, &running_handles);
             }
 
-            Delay(current_delay);
+            Delay(current_delay, "main");
         }
         else if (is_empty && running_handles == 0) {
-            Delay(100);
+            Delay(100, "main");
             continue;
         }
 
