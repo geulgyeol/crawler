@@ -20,6 +20,15 @@ unique_ptr<pubsub::Subscriber> blogWritingLinkForProfileSubscriber;
 unique_ptr<pubsub::Subscriber> blogWritingLinkForContentSubscriber;
 
 
+queue<string> messageQueue;
+bool subscribeEnabled = false;
+
+struct TistoryRequestData {
+    string* buffer;
+    int index;
+};
+
+
 int main() {
     cin.tie(NULL);
     ios::sync_with_stdio(false);
@@ -44,252 +53,291 @@ int main() {
     curl_global_init(CURL_GLOBAL_DEFAULT);
     CURL* curl;
 
-    while (true) {
-        vector<string> links = Subscribe(*blogProfileSubscriber, 10);
-        vector<string*> buffers;
+    thread linkFinderSubscribeThread(Subscribe, *blogProfileSubscriber, &messageQueue, &subscribeEnabled, DEFAULT_SUB_WAITING_TIME);
+    linkFinderSubscribeThread.detach();
 
-        if (links[0] == TIMEOUTED) {
+    while (true) {
+        bool is_empty;
+        {
+            lock_guard<mutex> lock(messageQueueMutex);
+            is_empty = messageQueue.empty();
+        }
+
+        if (is_empty) {
+            Delay(100, "main");
             continue;
         }
+
+        string link;
+        {
+            std::lock_guard<std::mutex> lock(messageQueueMutex);
+            link = { messageQueue.front() };
+            messageQueue.pop();
+        }
+
+        vector<string*> buffers;
 
         string readBuffer;
         
         curl = curl_easy_init();
         if (curl) {
-            for (int i = 0; i < links.size(); i++) {
-                string link = links[i];
-                if (link == "") {
-                    break;
-                }
+            if (link == "") {
+                break;
+            }
 
-                string link_t = link;
-                size_t pos = link_t.find('/');
-                if (pos != string::npos) {
-                    link_t.replace(pos, 1, "%20");
-                }
+            string link_t = link;
+            size_t pos = link_t.find('/');
+            if (pos != string::npos) {
+                link_t.replace(pos, 1, "%20");
+            }
 
-                if (!CheckLinkNotVisited(curl, "LinkFinder_" + link_t)) continue;
+            if (ENABLE_DB_UPLOAD && !CheckLinkNotVisited(curl, "LinkFinder_" + link_t)) continue;
 
-                if (link[0] == 'N') {
-                    string blogName = link.substr(1);
-                    vector<string> validPages;
-                    int collectCnt = 0;
-                    int currentPage = 1;
+            if (link[0] == 'N') {
+                string blogName = link.substr(1);
+                vector<string> validPages;
+                int collectCnt = 0;
+                int currentPage = 1;
 
-                    set<string> foundPostIds;
-                    bool duplicateFound = false;
+                set<string> foundPostIds;
+                bool duplicateFound = false;
 
-                    while (true) {
-                        string url = "https://blog.naver.com/PostTitleListAsync.naver?blogId=" + blogName + "&currentPage=" + to_string(currentPage) + "&countPerPage=30";
-                        string referer = "Referer: https://blog.naver.com/" + blogName;
-
-                        if (!IsAllowedByRobotsGeneral(url)) {
-                            cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
-                            break;
-                        }
-
-                        readBuffer.clear();
-                        struct curl_slist* headers = SetCURL(curl, &readBuffer, url, referer);
-
-                        CURLcode res = curl_easy_perform(curl);
-                        curl_slist_free_all(headers);
-                        if (res != CURLE_OK) {
-                            cerr << "curl_easy_perform() failed on page " << currentPage << ": " << curl_easy_strerror(res) << endl;
-                            break;
-                        }
-
-                        if (readBuffer.find("\"resultCode\":\"E\"") != string::npos) {
-                            break;
-                        }
-
-                        regex logNoRegex(R"D("logNo":"(\d+)")D");
-                        smatch matchLogNo;
-                        string::const_iterator searchStart(readBuffer.cbegin());
-                        int pagesFoundInThisCall = 0;
-
-                        while (regex_search(searchStart, readBuffer.cend(), matchLogNo, logNoRegex)) {
-                            string postId = matchLogNo[1].str();
-
-                            if (foundPostIds.count(postId)) {
-                                duplicateFound = true;
-                                break;
-                            }
-
-                            foundPostIds.insert(postId);
-                            validPages.push_back("N" + blogName + "/" + postId);
-
-                            searchStart = matchLogNo.suffix().first;
-                            collectCnt++;
-                            pagesFoundInThisCall++;
-                        }
-
-                        cout << "Current Collect : " << collectCnt << " (Page: " << currentPage << ")\r";
-
-                        if (duplicateFound || pagesFoundInThisCall == 0) {
-                            break;
-                        }
-
-                        currentPage++;
-                        Delay(DELAY_MILLI_N);
-                    }
-
-                    cout << "\n";
-
-                    if (RegisterLink(curl, "LinkFinder_" + link_t)) {
-                        Publish(*blogWritingPublisher, validPages);
-                    }
-                    
-                    Delay(DELAY_MILLI_N);
-                }
-                else if (link[0] == 'T') {
-                    string url = "https://" + link.substr(1) + ".tistory.com/rss";
+                while (true) {
+                    string url = "https://blog.naver.com/PostTitleListAsync.naver?blogId=" + blogName + "&currentPage=" + to_string(currentPage) + "&countPerPage=30";
+                    string referer = "Referer: https://blog.naver.com/" + blogName;
 
                     if (!IsAllowedByRobotsGeneral(url)) {
                         cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
-                        Delay(DELAY_MILLI_T);
-                        continue;
+                        break;
                     }
 
-                    struct curl_slist* headers = SetCURL(curl, &readBuffer, url);
+                    readBuffer.clear();
+                    struct curl_slist* headers = SetCURL(curl, &readBuffer, url, referer);
 
                     CURLcode res = curl_easy_perform(curl);
                     curl_slist_free_all(headers);
-                    if (res != CURLE_OK)
-                        cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << endl;
+                    if (res != CURLE_OK) {
+                        cerr << "curl_easy_perform() failed on page " << currentPage << ": " << curl_easy_strerror(res) << endl;
+                        break;
+                    }
 
-                    regex linkRegex("<link>https://[^/]+/([0-9]+)</link>");
-                    smatch match;
+                    if (readBuffer.find("\"resultCode\":\"E\"") != string::npos) {
+                        break;
+                    }
 
-                    if (regex_search(readBuffer, match, linkRegex)) {
-                        try {
-                            int max = stoi(match[1].str());
-                            vector<string> validPages;
+                    regex logNoRegex(R"D("logNo":"(\d+)")D");
+                    smatch matchLogNo;
+                    string::const_iterator searchStart(readBuffer.cbegin());
+                    int pagesFoundInThisCall = 0;
 
-                            CURLM* multi_handle = curl_multi_init();
-                            vector<CURL*> easy_handles;
-                            vector<struct curl_slist*> headersList;
-                            int activeTransfers = 0;
-                            int completed = 0;
-                            int emptyPageCnt = 0;
+                    while (regex_search(searchStart, readBuffer.cend(), matchLogNo, logNoRegex)) {
+                        string postId = matchLogNo[1].str();
 
-                            cout << "Requests (total: " << max << ")\n";
-
-                            int currentIndex = max;
-                            for (int j = 0; j < MAX_CONCURRENT_REQUESTS && currentIndex > 0; ++j) {
-                                CURL* eh = curl_easy_init();
-                                string* buffer = new string();
-                                buffers.push_back(buffer);
-                                string url = "https://" + link.substr(1) + ".tistory.com/" + to_string(currentIndex);
-
-                                if (!IsAllowedByRobotsGeneral(url)) {
-                                    cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
-                                    Delay(DELAY_MILLI_T);
-                                    currentIndex--;
-                                    continue;
-                                }
-
-                                headersList.push_back(SetCURL(eh, buffer, url, "", "0-256"));
-                                curl_multi_add_handle(multi_handle, eh);
-                                easy_handles.push_back(eh);
-                                activeTransfers++;
-                                currentIndex--;
-                            }
-
-                            int running = 0;
-                            curl_multi_perform(multi_handle, &running);
-
-                            while (running) {
-                                int numfds = 0;
-                                CURLMcode mc = curl_multi_wait(multi_handle, NULL, 0, 1000, &numfds);
-                                if (mc != CURLM_OK) continue;
-                                curl_multi_perform(multi_handle, &running);
-
-                                CURLMsg* msg;
-                                int msgs_left;
-                                while ((msg = curl_multi_info_read(multi_handle, &msgs_left))) {
-                                    if (msg->msg == CURLMSG_DONE) {
-                                        CURL* eh = msg->easy_handle;
-                                        string* buffer;
-                                        curl_easy_getinfo(eh, CURLINFO_PRIVATE, &buffer);
-
-                                        smatch matchTitle;
-                                        regex titleRegex("<title>(.*?)</title>");
-                                        if (regex_search(*buffer, matchTitle, titleRegex)) {
-                                            if (matchTitle[1].str() != "TISTORY") {
-                                                emptyPageCnt = 0;
-                                                char* url;
-                                                curl_easy_getinfo(eh, CURLINFO_EFFECTIVE_URL, &url);
-
-                                                string urlStr(url);
-                                                smatch idMatch;
-                                                regex idRe(".*/([0-9]+)$");
-
-                                                if (regex_search(urlStr, idMatch, idRe)) {
-                                                    validPages.push_back("T" + link.substr(1) + "/" + idMatch[1].str());
-                                                }
-                                            }
-                                            else {
-                                                emptyPageCnt++;
-                                                if (emptyPageCnt >= 20) {
-                                                    currentIndex = 0;
-                                                }
-                                            }
-                                        }
-
-                                        curl_multi_remove_handle(multi_handle, eh);
-                                        curl_easy_cleanup(eh);
-                                        --activeTransfers;
-                                        ++completed;
-                                        PrintProgressBar(completed, max);
-
-                                        if (currentIndex > 0) {
-                                            CURL* eh = curl_easy_init();
-                                            string* buffer = new string();
-                                            buffers.push_back(buffer);
-                                            string url = "https://" + link.substr(1) + ".tistory.com/" + to_string(currentIndex);
-
-                                            if (!IsAllowedByRobotsGeneral(url)) {
-                                                cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
-                                                currentIndex--;
-                                                curl_easy_cleanup(eh);
-                                                Delay(DELAY_MILLI_T);
-                                                continue;
-                                            }
-
-                                            headersList.push_back(SetCURL(eh, buffer, url, "", "0-256"));
-                                            curl_multi_add_handle(multi_handle, eh);
-                                            activeTransfers++;
-                                            currentIndex--;
-
-                                            Delay(DELAY_MILLI_T);
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (!headersList.empty()) {
-                                for (int j = 0; j < headersList.size(); j++) {
-                                    curl_slist_free_all(headersList[j]);
-                                }
-                                headersList.clear();
-                            }
-
-                            cout << "\n# Valid Page Count : " << validPages.size() << endl;
-                            curl_multi_cleanup(multi_handle);
-
-                            if (RegisterLink(curl, "LinkFinder_" + link_t)) {
-                                Publish(*blogWritingPublisher, validPages);
-                            }
-
-                            Delay(DELAY_MILLI_N);
+                        if (foundPostIds.count(postId)) {
+                            duplicateFound = true;
+                            break;
                         }
-                        catch (exception& e) {
-                            cout << "I hate Tistory" << endl;
-                        }
+
+                        foundPostIds.insert(postId);
+                        validPages.push_back("N" + blogName + "/" + postId);
+
+                        searchStart = matchLogNo.suffix().first;
+                        collectCnt++;
+                        pagesFoundInThisCall++;
+                    }
+
+                    cout << "Current Collect : " << collectCnt << " (Page: " << currentPage << ")\r";
+
+                    if (duplicateFound || pagesFoundInThisCall == 0) {
+                        break;
+                    }
+
+                    currentPage++;
+                    Delay(DELAY_MILLI_N, "main");
+                }
+
+                cout << "\n";
+
+                if (!ENABLE_DB_UPLOAD || RegisterLink(curl, "LinkFinder_" + link_t)) {
+                    Publish(*blogWritingPublisher, validPages);
+                }
+
+                Delay(DELAY_MILLI_N, "main");
+            }
+            else if (link[0] == 'T') {
+                string readBuffer;
+                string url = "https://" + link.substr(1) + ".tistory.com/rss";
+
+                if (!IsAllowedByRobotsGeneral(url)) {
+                    cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
+                    Delay(DELAY_MILLI_T, "main");
+                    curl_easy_cleanup(curl);
+                    continue;
+                }
+
+                struct curl_slist* headers = SetCURL(curl, &readBuffer, url);
+                CURLcode res = curl_easy_perform(curl);
+                curl_slist_free_all(headers);
+
+                if (res != CURLE_OK) {
+                    cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << endl;
+                    curl_easy_cleanup(curl);
+                    continue;
+                }
+
+                regex linkRegex("<link>https://[^/]+/([0-9]+)</link>");
+                smatch match;
+
+                int maxIndex = 0;
+                if (regex_search(readBuffer, match, linkRegex)) {
+                    try {
+                        maxIndex = stoi(match[1].str());
+                    }
+                    catch (exception& e) {
+                        cerr << "Failed to parse max post ID from RSS: " << e.what() << endl;
+                        continue;
                     }
                 }
-                cout << "\n";
+
+                if (maxIndex == 0) {
+                    cout << "No post IDs found for [" << link << "].\n";
+                    curl_easy_cleanup(curl);
+                    Delay(DELAY_MILLI_T, "main");
+                    continue;
+                }
+
+                CURLM* multi_handle = curl_multi_init();
+                if (!multi_handle) {
+                    cerr << "Failed to initialize CURL multi handle" << endl;
+                    curl_easy_cleanup(curl);
+                    continue;
+                }
+
+                map<CURL*, unique_ptr<TistoryRequestData>> requests;
+
+                vector<string> validPages;
+                int emptyPageCnt = 0;
+                int currentIndex = maxIndex;
+                int completed = 0;
+
+                cout << "Requests (total max: " << maxIndex << ")\n";
+
+                while (currentIndex > 0 || !requests.empty()) {
+                    if (currentIndex > 0 && requests.size() < MAX_CONCURRENT_REQUESTS) {
+                        CURL* eh = curl_easy_init();
+                        if (!eh) {
+                            cerr << "Failed to initialize easy handle for index " << currentIndex << endl;
+                            currentIndex--;
+                            continue;
+                        }
+
+                        auto data = make_unique<TistoryRequestData>();
+                        data->index = currentIndex;
+                        data->buffer = new string();
+
+                        string request_url = "https://" + link.substr(1) + ".tistory.com/" + to_string(currentIndex);
+
+                        if (IsAllowedByRobotsGeneral(request_url)) {
+                            struct curl_slist* headers = SetCURL(eh, data->buffer, request_url, "", "0-256");
+
+                            curl_easy_setopt(eh, CURLOPT_PRIVATE, data.get());
+
+                            curl_multi_add_handle(multi_handle, eh);
+                            requests[eh] = std::move(data);
+
+                            Delay(DELAY_MILLI_T, "main");
+                        }
+                        else {
+                            cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << request_url << "]\\n";
+                            delete data->buffer;
+                            curl_easy_cleanup(eh);
+                        }
+                        currentIndex--;
+                    }
+
+                    int running_handles = requests.size();
+                    if (running_handles > 0) {
+                        int numfds = 0;
+                        CURLMcode mc = curl_multi_wait(multi_handle, NULL, 0, 1, &numfds);
+                        if (mc != CURLM_OK) break;
+
+                        curl_multi_perform(multi_handle, &running_handles);
+
+                        CURLMsg* msg;
+                        int msgs_left;
+                        while ((msg = curl_multi_info_read(multi_handle, &msgs_left))) {
+                            if (msg->msg == CURLMSG_DONE) {
+                                CURL* eh = msg->easy_handle;
+
+                                TistoryRequestData* raw_data_ptr = nullptr;
+                                curl_easy_getinfo(eh, CURLINFO_PRIVATE, &raw_data_ptr);
+
+                                if (raw_data_ptr && requests.count(eh)) {
+                                    int titleTagOpenIndex = raw_data_ptr->buffer->find("<title>");
+                                    int titleTagCloseIndex = raw_data_ptr->buffer->find("</title>");
+
+                                    string htmlTitle = raw_data_ptr->buffer->substr(titleTagOpenIndex + 7, titleTagCloseIndex - titleTagOpenIndex - 7);
+
+                                    if (htmlTitle != "TISTORY") {
+                                        emptyPageCnt = 0;
+                                        validPages.push_back("T" + link.substr(1) + "/" + to_string(raw_data_ptr->index));
+                                    }
+                                    else {
+                                        emptyPageCnt++;
+                                        if (emptyPageCnt >= 20) {
+                                            currentIndex = 0;
+                                        }
+                                    }
+
+                                    /*smatch matchTitle;
+                                    regex titleRegex("<title>(.*?)</title>");
+                                    if (regex_search(*(raw_data_ptr->buffer), matchTitle, titleRegex)) {
+                                        if (matchTitle[1].str() != "TISTORY") {
+                                            emptyPageCnt = 0;
+                                            validPages.push_back("T" + link.substr(1) + "/" + to_string(raw_data_ptr->index));
+                                        }
+                                        else {
+                                            emptyPageCnt++;
+                                            if (emptyPageCnt >= 20) {
+                                                currentIndex = 0;
+                                            }
+                                        }
+                                    }*/
+
+                                    delete raw_data_ptr->buffer;
+
+                                    requests.erase(eh);
+
+                                    curl_multi_remove_handle(multi_handle, eh);
+                                    curl_easy_cleanup(eh);
+                                    ++completed;
+                                    PrintProgressBar(completed, maxIndex);
+                                }
+                                else {
+                                    curl_multi_remove_handle(multi_handle, eh);
+                                    curl_easy_cleanup(eh);
+                                    ++completed;
+                                    PrintProgressBar(completed, maxIndex);
+                                }
+                            }
+                        }
+                    }
+
+                    if (currentIndex <= 0 && requests.empty()) {
+                        break;
+                    }
+                }
+
+                cout << "\n# Valid Page Count : " << validPages.size() << endl;
+                curl_multi_cleanup(multi_handle);
+
+                if (!ENABLE_DB_UPLOAD || RegisterLink(curl, "LinkFinder_" + link_t)) {
+                    Publish(*blogWritingPublisher, validPages);
+                }
+
+                Delay(DELAY_MILLI_T, "main");
             }
+            cout << "\n";
         }
 
         if (curl) {

@@ -25,7 +25,11 @@ int main() {
     curl = curl_easy_init();
 
     if (curl) {
-        //cout << PostHTMLContent(curl, "Nhaesung_88%20223258025369", "{\"body\":\"asdf\",\"blog\":\"naver\",\"timestamp\":" + to_string(chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count()) + "}") << endl;
+        while (true) {
+            cout << "Start\n";
+            Delay(1000, "test");
+            cout << "End\n";
+        }
     }
 
     curl_global_cleanup();
