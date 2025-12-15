@@ -88,6 +88,7 @@ struct RequestData {
     string body;
     string readBuffer;
     struct curl_slist* headers;
+    int index;
 
     ~RequestData() {
         if (headers) {
@@ -523,12 +524,7 @@ bool CheckLinkNotVisited(CURL* curl, const string link) {
 
 bool RegisterLink(CURL* curl, const string link) {
     string url = config.LINK_KV_ENDPOINT + "/" + link;
-    
-    /*if (!CheckLinkNotVisited(curl, link)) {
-        cout << "Register Links failed for [" << link << "]\n";
-        return false;
-    }*/
-    
+
     string readBuffer;
 
     struct curl_slist* headers = SetCURL(curl, &readBuffer, url, "", "", "POST");
@@ -544,6 +540,82 @@ bool RegisterLink(CURL* curl, const string link) {
     }
 
     return httpCode == 201;
+}
+
+vector<bool> RegisterLinks(CURL* curl, vector<string> links) {
+    if (links.empty()) return {};
+
+    vector<bool> checker(links.size(), false);
+
+    CURLM * multi_handle = curl_multi_init();
+    if (!multi_handle) {
+        cerr << "Failed to initialize CURL multi handle." << endl;
+        return checker;
+    }
+
+    map<CURL*, unique_ptr<RequestData>> requests;
+
+    for (int i = 0; i < links.size(); i++) {
+        string link = links[i];
+        CURL* eh = curl_easy_init();
+        if (!eh) {
+            cerr << "Failed to initialize CURL easy handle." << endl;
+            continue;
+        }
+
+        auto data = make_unique<RequestData>();
+        data->link = link;
+        data->index = i;
+
+        string url = config.LINK_KV_ENDPOINT + "/" + data->link;
+
+        struct curl_slist* headers = SetCURL(eh, &data->readBuffer, url, "", "", "POST");
+        data->headers = headers;
+
+        curl_multi_add_handle(multi_handle, eh);
+
+        requests[eh] = move(data);
+    }
+
+    int still_running = 0;
+    curl_multi_perform(multi_handle, &still_running);
+
+    while (still_running) {
+        int numfds = 0;
+        CURLMcode mc = curl_multi_wait(multi_handle, NULL, 0, 100, &numfds);
+        if (mc != CURLM_OK) break;
+
+        curl_multi_perform(multi_handle, &still_running);
+    }
+
+    CURLMsg* msg;
+    int msgs_left;
+    while ((msg = curl_multi_info_read(multi_handle, &msgs_left))) {
+        if (msg->msg == CURLMSG_DONE) {
+            CURL* eh = msg->easy_handle;
+
+            const auto& data = requests[eh];
+            long response_code;
+            curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &response_code);
+
+            if (msg->data.result == CURLE_OK && response_code == 201) {
+                cout << "KV POST success for [" << data->link << "] (Code: " << response_code << ").\n";
+                checker[data->index] = true;
+            }
+            else {
+                cerr << "KV POST FAILED for [" << data->link << "] (Code: " << response_code << "). Error: " << curl_easy_strerror(msg->data.result) << endl;
+            }
+
+            curl_multi_remove_handle(multi_handle, eh);
+            curl_easy_cleanup(eh);
+
+            requests.erase(eh);
+        }
+    }
+
+    curl_multi_cleanup(multi_handle);
+
+    return checker;
 }
 
 void PostHTMLContent(const map<string, string> bodies) {
@@ -622,4 +694,33 @@ void PostHTMLContent(const map<string, string> bodies) {
     }
 
     curl_multi_cleanup(multi_handle);
+}
+
+bool DeleteFromStorage(CURL* curl, const string link, const string storage) { // kv or html
+    string url;
+    if (storage == "kv") {
+        url = config.LINK_KV_ENDPOINT + "/" + link;
+    }
+    else if (storage == "html") {
+        url = config.HTML_STORAGE_ENDPOINT + "/" + link;
+    }
+    else {
+        return false;
+    }
+
+    string readBuffer;
+
+    struct curl_slist* headers = SetCURL(curl, &readBuffer, url, "", "", "DELETE");
+
+    long httpCode = 0;
+    CURLcode res = curl_easy_perform(curl);
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
+    curl_slist_free_all(headers);
+
+    if (res != CURLE_OK) {
+        cerr << "DELETE failed for [" << link << "]: " << curl_easy_strerror(res) << endl;
+        return false;
+    }
+
+    return httpCode == 201;
 }

@@ -90,7 +90,7 @@ int main() {
                 link_t.replace(pos, 1, "%20");
             }
 
-            if (!CheckLinkNotVisited(curl, "LinkFinder_" + link_t)) continue;
+            if (ENABLE_DB_UPLOAD && !CheckLinkNotVisited(curl, "LinkFinder_" + link_t)) continue;
 
             if (link[0] == 'N') {
                 string blogName = link.substr(1);
@@ -157,7 +157,7 @@ int main() {
 
                 cout << "\n";
 
-                if (RegisterLink(curl, "LinkFinder_" + link_t)) {
+                if (!ENABLE_DB_UPLOAD || RegisterLink(curl, "LinkFinder_" + link_t)) {
                     Publish(*blogWritingPublisher, validPages);
                 }
 

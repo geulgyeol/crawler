@@ -25,7 +25,7 @@ int main() {
     curl = curl_easy_init();
 
     if (curl) {
-        //cout << PostHTMLContent(curl, "Nhaesung_88%20223258025369", "{\"body\":\"asdf\",\"blog\":\"naver\",\"timestamp\":" + to_string(chrono::duration_cast<chrono::seconds>(chrono::system_clock::now().time_since_epoch()).count()) + "}") << endl;
+        //DeleteFromStorage(curl, "Crawler_Nhaesung_88%20223597388359", "kv");
     }
 
     curl_global_cleanup();
