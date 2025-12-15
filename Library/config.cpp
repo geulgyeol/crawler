@@ -13,7 +13,7 @@ Config::Config() :
     WRITING_FOR_CONTENT_SUB_ID("blogWritingLinkForContentSub"),
     CRAWLER_NAME("geulgyeol-crawler"),
     USER_AGENT("User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0; compatible; " + CRAWLER_NAME + "/2.0; +https://github.com/geulgyeol) Gecko/20100101 Firefox/144.0"),
-    LINK_KV_ENDPOINT("localhost:8080"), //link-kv.default.svc.cluster.local
+    LINK_KV_ENDPOINT("localhost:8080"), //link-kv.default.svc.cluster.local 
     HTML_STORAGE_ENDPOINT("localhost:8081"), //html-storage.default.svc.cluster.local
     MAX_CONCURRENT_REQUESTS(10),
     BODIES_THRESHOLD(100),
