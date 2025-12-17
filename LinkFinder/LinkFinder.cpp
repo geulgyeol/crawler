@@ -289,21 +289,6 @@ int main() {
                                         }
                                     }
 
-                                    /*smatch matchTitle;
-                                    regex titleRegex("<title>(.*?)</title>");
-                                    if (regex_search(*(raw_data_ptr->buffer), matchTitle, titleRegex)) {
-                                        if (matchTitle[1].str() != "TISTORY") {
-                                            emptyPageCnt = 0;
-                                            validPages.push_back("T" + link.substr(1) + "/" + to_string(raw_data_ptr->index));
-                                        }
-                                        else {
-                                            emptyPageCnt++;
-                                            if (emptyPageCnt >= 20) {
-                                                currentIndex = 0;
-                                            }
-                                        }
-                                    }*/
-
                                     delete raw_data_ptr->buffer;
 
                                     requests.erase(eh);
