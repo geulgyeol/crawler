@@ -125,13 +125,23 @@ int main() {
                         break;
                     }
 
-                    regex logNoRegex(R"D("logNo":"(\d+)")D");
-                    smatch matchLogNo;
-                    string::const_iterator searchStart(readBuffer.cbegin());
+                    int lastIndex = readBuffer.find("tagQueryString");
                     int pagesFoundInThisCall = 0;
 
-                    while (regex_search(searchStart, readBuffer.cend(), matchLogNo, logNoRegex)) {
-                        string postId = matchLogNo[1].str();
+                    while (true) {
+                        int newIndex = readBuffer.find("logNo", lastIndex);
+                        if (newIndex == string::npos) {
+                            break;
+                        }
+
+                        int splitIndex = readBuffer.find("&", newIndex);
+                        if (splitIndex == string::npos) {
+                            splitIndex = readBuffer.find("\"", newIndex);
+                        }
+
+                        string postId = readBuffer.substr(newIndex + 6, splitIndex - newIndex - 6);
+
+                        lastIndex = splitIndex;
 
                         if (foundPostIds.count(postId)) {
                             duplicateFound = true;
@@ -141,7 +151,6 @@ int main() {
                         foundPostIds.insert(postId);
                         validPages.push_back("N" + blogName + "/" + postId);
 
-                        searchStart = matchLogNo.suffix().first;
                         collectCnt++;
                         pagesFoundInThisCall++;
                     }
