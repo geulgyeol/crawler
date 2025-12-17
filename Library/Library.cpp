@@ -122,7 +122,7 @@ bool IsAllowedByRobotsGeneral(const string& fullUrl);
 void Delay(int milliseconds, string thread) {
     chrono::steady_clock::time_point lastTime;
     {
-        lock_guard<mutex> lock(subscribeEnabledMutex);
+        lock_guard<mutex> lock(lastTimesMutex);
         if (lastTimes.find(thread) == lastTimes.end()) {
             lastTimes.insert({ thread, chrono::steady_clock::now() });
         }
