@@ -200,8 +200,10 @@ int main() {
                     if (pos != string::npos) {
                         string db_link = link;
                         db_link.replace(pos, 1, "%20");
+                        string html_storage_link = link;
+                        html_storage_link.replace(pos, 1, " ");
                         if (RegisterLink(curl, "Crawler_" + db_link)) {
-                            bodies.insert({ db_link.substr(1), Body });
+                            bodies.insert({ html_storage_link.substr(1), Body });
                         }
                     }
                 }
