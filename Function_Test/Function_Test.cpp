@@ -26,9 +26,7 @@ int main() {
 
     if (curl) {
         while (true) {
-            cout << "Start\n";
-            Delay(1000, "test");
-            cout << "End\n";
+            
         }
     }
 

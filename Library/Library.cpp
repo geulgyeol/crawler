@@ -17,6 +17,7 @@
 #include <sstream>
 #include <iomanip>
 #include <queue>
+#include <fstream>
 
 
 using namespace std;
@@ -647,79 +648,49 @@ vector<bool> RegisterLinks(CURL* curl, vector<string> links) {
 void PostHTMLContent(const map<string, string> bodies) {
     if (bodies.empty()) return;
 
-    CURLM* multi_handle = curl_multi_init();
-    if (!multi_handle) {
-        cerr << "Failed to initialize CURL multi handle." << endl;
-        return;
-    }
+    string readBuffer;
 
-    map<CURL*, unique_ptr<RequestData>> requests;
+    CURL* curl = curl_easy_init();
+    if (curl) {
+        string content = "{";
 
-    for (const auto& entry : bodies) {
-        CURL* eh = curl_easy_init();
-        if (!eh) {
-            cerr << "Failed to initialize CURL easy handle." << endl;
-            continue;
+        int bodiesSearchCnt = 0;
+        for (const auto& entry : bodies) {
+            string link = entry.first;
+            string body = entry.second;
+
+            content.append("\"" + link + "\": " + body);
+            if (++bodiesSearchCnt != bodies.size()) {
+                content.append(", ");
+            }
         }
 
-        auto data = make_unique<RequestData>();
-        data->link = entry.first;
-        data->body = entry.second;
+        content.append("}");
 
-        string url = config.HTML_STORAGE_ENDPOINT + "/" + data->link;
+        string url = config.HTML_STORAGE_ENDPOINT + "/batch";
 
-        curl_easy_setopt(eh, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(eh, CURLOPT_CUSTOMREQUEST, "POST");
-        curl_easy_setopt(eh, CURLOPT_POSTFIELDS, data->body.c_str());
-        curl_easy_setopt(eh, CURLOPT_POSTFIELDSIZE, data->body.length());
-        curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, WriteCallback);
-        curl_easy_setopt(eh, CURLOPT_WRITEDATA, &data->readBuffer);
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, content.c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, content.length());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
 
-        data->headers = curl_slist_append(data->headers, config.USER_AGENT.c_str());
-        data->headers = curl_slist_append(data->headers, "Content-Type: application/json");
-        curl_easy_setopt(eh, CURLOPT_HTTPHEADER, data->headers);
+        struct curl_slist* headers = NULL;
+        headers = curl_slist_append(headers, config.USER_AGENT.c_str());
+        headers = curl_slist_append(headers, "Content-Type: application/json");
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
-        curl_multi_add_handle(multi_handle, eh);
 
-        requests[eh] = move(data);
-    }
-
-    int still_running = 0;
-    curl_multi_perform(multi_handle, &still_running);
-
-    while (still_running) {
-        int numfds = 0;
-        CURLMcode mc = curl_multi_wait(multi_handle, NULL, 0, 100, &numfds);
-        if (mc != CURLM_OK) break;
-
-        curl_multi_perform(multi_handle, &still_running);
-    }
-
-    CURLMsg* msg;
-    int msgs_left;
-    while ((msg = curl_multi_info_read(multi_handle, &msgs_left))) {
-        if (msg->msg == CURLMSG_DONE) {
-            CURL* eh = msg->easy_handle;
-
-            const auto& data = requests[eh];
-            long response_code;
-            curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &response_code);
-
-            if (msg->data.result == CURLE_OK && response_code < 400) {
-                cout << "HTML POST success for [" << data->link << "] (Code: " << response_code << ").\n";
-            }
-            else {
-                cerr << "HTML POST FAILED for [" << data->link << "] (Code: " << response_code << "). Error: " << curl_easy_strerror(msg->data.result) << endl;
-            }
-
-            curl_multi_remove_handle(multi_handle, eh);
-            curl_easy_cleanup(eh);
-
-            requests.erase(eh);
+        CURLcode response_code = curl_easy_perform(curl);
+        curl_slist_free_all(headers);
+        if (response_code == CURLE_OK) {
+            cout << "HTML POST success.\n";
+        }
+        else {
+            cerr << "HTML POST FAILED.\n";
         }
     }
-
-    curl_multi_cleanup(multi_handle);
 }
 
 bool DeleteFromStorage(CURL* curl, const string link, const string storage) { // kv or html

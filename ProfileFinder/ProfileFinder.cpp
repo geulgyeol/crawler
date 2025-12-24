@@ -1,4 +1,4 @@
-#include "../Library/Library.cpp"
+#include "../Library/Library.cpp" //109 line
 
 #ifdef _WIN32
 #include <windows.h>
@@ -106,6 +106,11 @@ int main() {
                 if (res != CURLE_OK)
                     cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << endl;
 
+                //auto start = std::chrono::steady_clock::now(); // 여기 최적화 할 예정 <------
+
+                //vector<string> blogIds;
+                //int collectCnt = 0;
+
                 regex sympathyBlogIdRegex(R"regex("domainIdOrBlogId":"(.*?)")regex");
                 smatch match;
 
@@ -130,6 +135,13 @@ int main() {
                     }
                 }
                 cout << "\n";
+
+                /*auto end_ = std::chrono::steady_clock::now();
+
+                auto duration = end_ - start;
+
+                auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+                cout << "duration : " << ms << "ms\n";*/
 
                 if (blogIds.empty()) {
                     Delay(DELAY_MILLI_N, "main");
