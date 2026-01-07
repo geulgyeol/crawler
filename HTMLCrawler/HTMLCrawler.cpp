@@ -11,6 +11,8 @@ const int CRAWL_PER_SECOND_N = CRAWL_PER_SECOND_MAP.at("HTMLCrawler_N");
 const int CRAWL_PER_SECOND_T = CRAWL_PER_SECOND_MAP.at("HTMLCrawler_T");
 const int DELAY_MILLI_N = 1000 / CRAWL_PER_SECOND_N;
 const int DELAY_MILLI_T = 1000 / CRAWL_PER_SECOND_T;
+std::chrono::nanoseconds DELAY_NANOS_N = std::chrono::nanoseconds(1'000'000'000LL / CRAWL_PER_SECOND_N);
+std::chrono::nanoseconds DELAY_NANOS_T = std::chrono::nanoseconds(1'000'000'000LL / CRAWL_PER_SECOND_T);
 
 unique_ptr<pubsub::Publisher> blogProfilePublisher;
 unique_ptr<pubsub::Publisher> blogWritingPublisher;
@@ -65,7 +67,7 @@ CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& 
     if (!IsAllowedByRobotsGeneral(url)) {
         cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
         delete readBuffer;
-        Delay(link[0], DELAY_MILLI_N, DELAY_MILLI_T, "main");
+        curl_easy_cleanup(eh);
         return nullptr;
     }
 
@@ -134,44 +136,50 @@ int main() {
 
     auto start = std::chrono::steady_clock::now();
 
+    using clock = std::chrono::steady_clock;
+    auto nextAdd = clock::now();
+    int running_handles = 0;
+
     while (true) {
-        string link_to_process = "";
-        bool is_empty; 
         {
-            lock_guard<mutex> lock(messageQueueMutex);
-            is_empty = messageQueue.empty();
-            if (!is_empty) {
-                link_to_process = messageQueue.front();
-                messageQueue.pop();
+            auto now = clock::now();
+
+            while ((int)buffers.size() < MAX_CONCURRENT_REQUESTS && now >= nextAdd) {
+                std::string link_to_process;
+                bool has;
+                {
+                    std::lock_guard<std::mutex> lock(messageQueueMutex);
+                    has = !messageQueue.empty();
+                    if (has) {
+                        link_to_process = std::move(messageQueue.front());
+                        messageQueue.pop();
+                    }
+                }
+                if (!has) {
+                    cout << "Queue is empty" << endl;
+                    break;
+                }
+
+                auto current_delay = (link_to_process[0] == 'N') ? DELAY_NANOS_N : DELAY_NANOS_T;
+
+                CURL* eh = CreateHandle(multi_handle, link_to_process, buffers, link_data, curl);
+                if (eh) {
+                    nextAdd += current_delay;
+                }
+
+                now = clock::now();
             }
         }
 
-        int running_handles = buffers.size();
-
-        if (!is_empty) {
-
-            int current_delay = (link_to_process[0] == 'N') ? DELAY_MILLI_N : DELAY_MILLI_T;
-
-            CURL* eh = CreateHandle(multi_handle, link_to_process, buffers, link_data, curl);
-
-            if (eh) {
-                curl_multi_perform(multi_handle, &running_handles);
-            }
-
-            Delay(current_delay, "main");
-        }
-        else if (is_empty && running_handles == 0) {
-            Delay(100, "main");
-            continue;
-        }
-
-        if (running_handles > 0) {
+        if (!buffers.empty()) {
             int numfds = 0;
-            CURLMcode mc = curl_multi_wait(multi_handle, NULL, 0, 100, &numfds);
+            CURLMcode mc = curl_multi_wait(multi_handle, NULL, 0, 10, &numfds);
             if (mc != CURLM_OK) break;
 
             mc = curl_multi_perform(multi_handle, &running_handles);
             if (mc != CURLM_OK) break;
+        } else {
+            Delay(100, "main");
         }
 
         CURLMsg* msg;
@@ -234,10 +242,11 @@ int main() {
         }
 
         if (bodies.empty() || bodies.size() < BODIES_THRESHOLD) continue;
+
         string log = to_string(bodies.size()) + " HTML Crawled in " + GetTakenTime(start) + "\n";
         cout << log;
         start = std::chrono::steady_clock::now();
-        thread postHTMLContentThread(PostHTMLContent, bodies);
+        thread postHTMLContentThread(PostHTMLContent, std::move(bodies));
         postHTMLContentThread.detach();
         bodies.clear();
     }
