@@ -103,11 +103,14 @@ int main() {
                 bool duplicateFound = false;
 
                 while (true) {
+                    auto start = std::chrono::steady_clock::now();
+
                     string url = "https://blog.naver.com/PostTitleListAsync.naver?blogId=" + blogName + "&currentPage=" + to_string(currentPage) + "&countPerPage=30";
                     string referer = "Referer: https://blog.naver.com/" + blogName;
 
                     if (!IsAllowedByRobotsGeneral(url)) {
-                        cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
+                        string log = "SKIP: Robots.txt denied access for [" + link + "] URL [" + url + "]\\n";
+                        cout << log;
                         break;
                     }
 
@@ -125,13 +128,23 @@ int main() {
                         break;
                     }
 
-                    regex logNoRegex(R"D("logNo":"(\d+)")D");
-                    smatch matchLogNo;
-                    string::const_iterator searchStart(readBuffer.cbegin());
+                    int lastIndex = readBuffer.find("tagQueryString");
                     int pagesFoundInThisCall = 0;
 
-                    while (regex_search(searchStart, readBuffer.cend(), matchLogNo, logNoRegex)) {
-                        string postId = matchLogNo[1].str();
+                    while (true) {
+                        int newIndex = readBuffer.find("logNo", lastIndex);
+                        if (newIndex == string::npos) {
+                            break;
+                        }
+
+                        int splitIndex = readBuffer.find("&", newIndex);
+                        if (splitIndex == string::npos) {
+                            splitIndex = readBuffer.find("\"", newIndex);
+                        }
+
+                        string postId = readBuffer.substr(newIndex + 6, splitIndex - newIndex - 6);
+
+                        lastIndex = splitIndex;
 
                         if (foundPostIds.count(postId)) {
                             duplicateFound = true;
@@ -141,12 +154,12 @@ int main() {
                         foundPostIds.insert(postId);
                         validPages.push_back("N" + blogName + "/" + postId);
 
-                        searchStart = matchLogNo.suffix().first;
                         collectCnt++;
                         pagesFoundInThisCall++;
                     }
 
-                    cout << "Current Collect : " << collectCnt << " (Page: " << currentPage << ")\r";
+                    string log = "Current Collect : " + to_string(collectCnt) + " (Page: " + to_string(currentPage) + ") " + GetTakenTime(start) + "\n";
+                    cout << log;
 
                     if (duplicateFound || pagesFoundInThisCall == 0) {
                         break;
@@ -169,11 +182,14 @@ int main() {
                 string url = "https://" + link.substr(1) + ".tistory.com/rss";
 
                 if (!IsAllowedByRobotsGeneral(url)) {
-                    cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
+                    string log = "SKIP: Robots.txt denied access for [" + link + "] URL [" + url + "]\\n";
+                    cout << log;
                     Delay(DELAY_MILLI_T, "main");
                     curl_easy_cleanup(curl);
                     continue;
                 }
+
+                auto start = std::chrono::steady_clock::now();
 
                 struct curl_slist* headers = SetCURL(curl, &readBuffer, url);
                 CURLcode res = curl_easy_perform(curl);
@@ -200,7 +216,7 @@ int main() {
                 }
 
                 if (maxIndex == 0) {
-                    cout << "No post IDs found for [" << link << "].\n";
+                    cout << "No post IDs found for [" << link << "]. " + GetTakenTime(start) + "\n";
                     curl_easy_cleanup(curl);
                     Delay(DELAY_MILLI_T, "main");
                     continue;
@@ -220,7 +236,10 @@ int main() {
                 int currentIndex = maxIndex;
                 int completed = 0;
 
-                cout << "Requests (total max: " << maxIndex << ")\n";
+                string log = "Requests (total max: " + to_string(maxIndex) + ") " + GetTakenTime(start) + "\n";
+                cout << log;
+
+                start = std::chrono::steady_clock::now();
 
                 while (currentIndex > 0 || !requests.empty()) {
                     if (currentIndex > 0 && requests.size() < MAX_CONCURRENT_REQUESTS) {
@@ -289,21 +308,6 @@ int main() {
                                         }
                                     }
 
-                                    /*smatch matchTitle;
-                                    regex titleRegex("<title>(.*?)</title>");
-                                    if (regex_search(*(raw_data_ptr->buffer), matchTitle, titleRegex)) {
-                                        if (matchTitle[1].str() != "TISTORY") {
-                                            emptyPageCnt = 0;
-                                            validPages.push_back("T" + link.substr(1) + "/" + to_string(raw_data_ptr->index));
-                                        }
-                                        else {
-                                            emptyPageCnt++;
-                                            if (emptyPageCnt >= 20) {
-                                                currentIndex = 0;
-                                            }
-                                        }
-                                    }*/
-
                                     delete raw_data_ptr->buffer;
 
                                     requests.erase(eh);
@@ -328,7 +332,8 @@ int main() {
                     }
                 }
 
-                cout << "\n# Valid Page Count : " << validPages.size() << endl;
+                log = "\n# Valid Page Count : " + to_string(validPages.size()) + ", " + GetTakenTime(start) + "\n";
+                cout << log;
                 curl_multi_cleanup(multi_handle);
 
                 if (!ENABLE_DB_UPLOAD || RegisterLink(curl, "LinkFinder_" + link_t)) {

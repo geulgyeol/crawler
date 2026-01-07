@@ -17,6 +17,7 @@
 #include <sstream>
 #include <iomanip>
 #include <queue>
+#include <fstream>
 
 
 using namespace std;
@@ -118,11 +119,12 @@ struct RequestData {
 
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
 bool IsAllowedByRobotsGeneral(const string& fullUrl);
+string GetTakenTime(std::chrono::steady_clock::time_point start);
 
 void Delay(int milliseconds, string thread) {
     chrono::steady_clock::time_point lastTime;
     {
-        lock_guard<mutex> lock(subscribeEnabledMutex);
+        lock_guard<mutex> lock(lastTimesMutex);
         if (lastTimes.find(thread) == lastTimes.end()) {
             lastTimes.insert({ thread, chrono::steady_clock::now() });
         }
@@ -159,6 +161,8 @@ void Delay(char blogType, const int DELAY_MILLI_N, const int DELAY_MILLI_T, stri
 void Publish(pubsub::Publisher publisher, vector<string> contents, vector<bool> checker = {}) try {
     vector<google::cloud::future<google::cloud::StatusOr<string>>> futures;
 
+    auto start = std::chrono::steady_clock::now();
+
     for (int i = 0; i < contents.size(); i++) {
         if (!checker.empty() && checker.size() > i) {
             if (!checker[i]) continue;
@@ -180,9 +184,13 @@ void Publish(pubsub::Publisher publisher, vector<string> contents, vector<bool> 
                 << id.status() << "\n";
         }
         else {
-            cout << "\"" << contents[i] << "\" published with id=" << *id << "\n";
+            string log = "\"" + contents[i] + "\" published with id=" + *id + "\n";
+            cout << log;
         }
     }
+
+    string log = to_string(futures.size()) + " Publishing in " + GetTakenTime(start) + "\n";
+    cout << log;
 }
 catch (google::cloud::Status const& status) {
     cerr << "google::cloud::Status thrown: " << status << "\n";
@@ -190,6 +198,10 @@ catch (google::cloud::Status const& status) {
 
 
 void Subscribe(pubsub::Subscriber subscriber, queue<string> *messageQueue, bool *subscribeEnabled, const int waitingTime = DEFAULT_SUB_WAITING_TIME) try {
+    int subscribeCnt = 0;
+    
+    auto start = std::chrono::steady_clock::now();
+
     while (true) {
         {
             lock_guard<mutex> lock(subscribeEnabledMutex);
@@ -203,18 +215,19 @@ void Subscribe(pubsub::Subscriber subscriber, queue<string> *messageQueue, bool 
             lock_guard<mutex> lock(subscribeEnabledMutex);
             is_enabled = *subscribeEnabled;
         }
-        
+
         if (is_enabled) {
             cout << "Listening for messages on subscription" << endl;
 
             auto session = subscriber.Subscribe(
                 [&](pubsub::Message const& m, pubsub::AckHandler h) {
                     move(h).ack();
-                    
+
                     {
                         lock_guard<mutex> lock(messageQueueMutex);
                         messageQueue->push(m.data());
                     }
+                    subscribeCnt++;
 
                     string receiveMessage = " # Received message: " + m.data() + "\n";
                     cout << receiveMessage;
@@ -243,6 +256,8 @@ void Subscribe(pubsub::Subscriber subscriber, queue<string> *messageQueue, bool 
 
             session.cancel();
             auto session_status = session.get();
+            string log = to_string(subscribeCnt) + " Subscribing in " + GetTakenTime(start) + "\n";
+            cout << log;
             cout << "session End, status = " << session_status << "\n";
         }
 
@@ -294,7 +309,7 @@ struct curl_slist* SetCURL(CURL* curl, string* readBuffer, string url, string re
 
 
 void PrintProgressBar(int current, int total) {
-    int barWidth = 50;
+    /*int barWidth = 50;
     float progress = (float)current / total;
 
     cout << "[";
@@ -303,8 +318,9 @@ void PrintProgressBar(int current, int total) {
         if (i < pos) cout << "=";
         else if (i == pos) cout << ">";
         else cout << " ";
-    }
-    cout << "] " << int(progress * 100.0) << "% " << "(" << current << "/" << total << ")" << "\r";
+    }*/
+    //cout << "] " << int(progress * 100.0) << "% " << "(" << current << "/" << total << ")" << "\r";
+    cout << "(" << current << "/" << total << ")" << "\r";
     cout.flush();
 }
 
@@ -647,79 +663,54 @@ vector<bool> RegisterLinks(CURL* curl, vector<string> links) {
 void PostHTMLContent(const map<string, string> bodies) {
     if (bodies.empty()) return;
 
-    CURLM* multi_handle = curl_multi_init();
-    if (!multi_handle) {
-        cerr << "Failed to initialize CURL multi handle." << endl;
-        return;
-    }
+    auto start = std::chrono::steady_clock::now();
 
-    map<CURL*, unique_ptr<RequestData>> requests;
+    string readBuffer;
 
-    for (const auto& entry : bodies) {
-        CURL* eh = curl_easy_init();
-        if (!eh) {
-            cerr << "Failed to initialize CURL easy handle." << endl;
-            continue;
+    CURL* curl = curl_easy_init();
+    if (curl) {
+        string content = "{";
+
+        int bodiesSearchCnt = 0;
+        for (const auto& entry : bodies) {
+            string link = entry.first;
+            string body = entry.second;
+
+            content.append("\"" + link + "\": " + body);
+            if (++bodiesSearchCnt != bodies.size()) {
+                content.append(", ");
+            }
         }
 
-        auto data = make_unique<RequestData>();
-        data->link = entry.first;
-        data->body = entry.second;
+        content.append("}");
 
-        string url = config.HTML_STORAGE_ENDPOINT + "/" + data->link;
+        string url = config.HTML_STORAGE_ENDPOINT + "/batch";
 
-        curl_easy_setopt(eh, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(eh, CURLOPT_CUSTOMREQUEST, "POST");
-        curl_easy_setopt(eh, CURLOPT_POSTFIELDS, data->body.c_str());
-        curl_easy_setopt(eh, CURLOPT_POSTFIELDSIZE, data->body.length());
-        curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, WriteCallback);
-        curl_easy_setopt(eh, CURLOPT_WRITEDATA, &data->readBuffer);
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, content.c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, content.length());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
 
-        data->headers = curl_slist_append(data->headers, config.USER_AGENT.c_str());
-        data->headers = curl_slist_append(data->headers, "Content-Type: application/json");
-        curl_easy_setopt(eh, CURLOPT_HTTPHEADER, data->headers);
+        struct curl_slist* headers = NULL;
+        headers = curl_slist_append(headers, config.USER_AGENT.c_str());
+        headers = curl_slist_append(headers, "Content-Type: application/json");
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
-        curl_multi_add_handle(multi_handle, eh);
 
-        requests[eh] = move(data);
-    }
-
-    int still_running = 0;
-    curl_multi_perform(multi_handle, &still_running);
-
-    while (still_running) {
-        int numfds = 0;
-        CURLMcode mc = curl_multi_wait(multi_handle, NULL, 0, 100, &numfds);
-        if (mc != CURLM_OK) break;
-
-        curl_multi_perform(multi_handle, &still_running);
-    }
-
-    CURLMsg* msg;
-    int msgs_left;
-    while ((msg = curl_multi_info_read(multi_handle, &msgs_left))) {
-        if (msg->msg == CURLMSG_DONE) {
-            CURL* eh = msg->easy_handle;
-
-            const auto& data = requests[eh];
-            long response_code;
-            curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &response_code);
-
-            if (msg->data.result == CURLE_OK && response_code < 400) {
-                cout << "HTML POST success for [" << data->link << "] (Code: " << response_code << ").\n";
-            }
-            else {
-                cerr << "HTML POST FAILED for [" << data->link << "] (Code: " << response_code << "). Error: " << curl_easy_strerror(msg->data.result) << endl;
-            }
-
-            curl_multi_remove_handle(multi_handle, eh);
-            curl_easy_cleanup(eh);
-
-            requests.erase(eh);
+        CURLcode response_code = curl_easy_perform(curl);
+        curl_slist_free_all(headers);
+        if (response_code == CURLE_OK) {
+            cout << "HTML POST success.\n";
         }
-    }
+        else {
+            cerr << "HTML POST FAILED.\n";
+        }
 
-    curl_multi_cleanup(multi_handle);
+        string log = to_string(bodies.size()) + " HTML Posting in " + GetTakenTime(start) + "\n";
+        cout << log;
+    }
 }
 
 bool DeleteFromStorage(CURL* curl, const string link, const string storage) { // kv or html
@@ -750,3 +741,19 @@ bool DeleteFromStorage(CURL* curl, const string link, const string storage) { //
 
     return httpCode == 201;
 }
+<<<<<<< HEAD
+=======
+
+
+string GetTakenTime(std::chrono::steady_clock::time_point start) {
+    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+
+    auto duration = end - start;
+
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+
+    string taken = to_string(ms) + "ms";
+
+    return taken;
+}
+>>>>>>> master

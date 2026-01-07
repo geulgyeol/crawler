@@ -1,4 +1,4 @@
-#include "../Library/Library.cpp"
+#include "../Library/Library.cpp" //109 line
 
 #ifdef _WIN32
 #include <windows.h>
@@ -105,6 +105,7 @@ int main() {
 
                 if (res != CURLE_OK)
                     cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << endl;
+
 
                 regex sympathyBlogIdRegex(R"regex("domainIdOrBlogId":"(.*?)")regex");
                 smatch match;
