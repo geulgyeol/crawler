@@ -741,8 +741,6 @@ bool DeleteFromStorage(CURL* curl, const string link, const string storage) { //
 
     return httpCode == 201;
 }
-<<<<<<< HEAD
-=======
 
 string GetTakenTime(std::chrono::steady_clock::time_point start) {
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
@@ -755,4 +753,3 @@ string GetTakenTime(std::chrono::steady_clock::time_point start) {
 
     return taken;
 }
->>>>>>> master
