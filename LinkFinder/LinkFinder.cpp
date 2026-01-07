@@ -103,11 +103,14 @@ int main() {
                 bool duplicateFound = false;
 
                 while (true) {
+                    auto start = std::chrono::steady_clock::now();
+
                     string url = "https://blog.naver.com/PostTitleListAsync.naver?blogId=" + blogName + "&currentPage=" + to_string(currentPage) + "&countPerPage=30";
                     string referer = "Referer: https://blog.naver.com/" + blogName;
 
                     if (!IsAllowedByRobotsGeneral(url)) {
-                        cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
+                        string log = "SKIP: Robots.txt denied access for [" + link + "] URL [" + url + "]\\n";
+                        cout << log;
                         break;
                     }
 
@@ -155,7 +158,8 @@ int main() {
                         pagesFoundInThisCall++;
                     }
 
-                    cout << "Current Collect : " << collectCnt << " (Page: " << currentPage << ")\r";
+                    string log = "Current Collect : " + to_string(collectCnt) + " (Page: " + to_string(currentPage) + ") " + GetTakenTime(start) + "\n";
+                    cout << log;
 
                     if (duplicateFound || pagesFoundInThisCall == 0) {
                         break;
@@ -178,11 +182,14 @@ int main() {
                 string url = "https://" + link.substr(1) + ".tistory.com/rss";
 
                 if (!IsAllowedByRobotsGeneral(url)) {
-                    cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
+                    string log = "SKIP: Robots.txt denied access for [" + link + "] URL [" + url + "]\\n";
+                    cout << log;
                     Delay(DELAY_MILLI_T, "main");
                     curl_easy_cleanup(curl);
                     continue;
                 }
+
+                auto start = std::chrono::steady_clock::now();
 
                 struct curl_slist* headers = SetCURL(curl, &readBuffer, url);
                 CURLcode res = curl_easy_perform(curl);
@@ -209,7 +216,7 @@ int main() {
                 }
 
                 if (maxIndex == 0) {
-                    cout << "No post IDs found for [" << link << "].\n";
+                    cout << "No post IDs found for [" << link << "]. " + GetTakenTime(start) + "\n";
                     curl_easy_cleanup(curl);
                     Delay(DELAY_MILLI_T, "main");
                     continue;
@@ -229,7 +236,10 @@ int main() {
                 int currentIndex = maxIndex;
                 int completed = 0;
 
-                cout << "Requests (total max: " << maxIndex << ")\n";
+                string log = "Requests (total max: " + to_string(maxIndex) + ") " + GetTakenTime(start) + "\n";
+                cout << log;
+
+                start = std::chrono::steady_clock::now();
 
                 while (currentIndex > 0 || !requests.empty()) {
                     if (currentIndex > 0 && requests.size() < MAX_CONCURRENT_REQUESTS) {
@@ -322,7 +332,8 @@ int main() {
                     }
                 }
 
-                cout << "\n# Valid Page Count : " << validPages.size() << endl;
+                log = "\n# Valid Page Count : " + to_string(validPages.size()) + ", " + GetTakenTime(start) + "\n";
+                cout << log;
                 curl_multi_cleanup(multi_handle);
 
                 if (!ENABLE_DB_UPLOAD || RegisterLink(curl, "LinkFinder_" + link_t)) {

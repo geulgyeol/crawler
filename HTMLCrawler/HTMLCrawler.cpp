@@ -36,6 +36,8 @@ CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& 
     }
     if (!CheckLinkNotVisited(curl, "Crawler_" + link_t.replace(pos, 1, "%20"))) return nullptr;
 
+    auto start = std::chrono::steady_clock::now();
+
     CURL* eh = curl_easy_init();
     if (!eh) {
         cerr << "Failed to initialize CURL easy handle." << endl;
@@ -76,6 +78,9 @@ CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& 
     curl_multi_add_handle(multi_handle, eh);
     buffers[eh] = readBuffer;
     link_data[eh] = link;
+
+    string log = "Handle Created in " + GetTakenTime(start) + "\n";
+    cout << log;
 
     return eh;
 }
@@ -127,6 +132,8 @@ int main() {
 
     map<string, string> bodies;
 
+    auto start = std::chrono::steady_clock::now();
+
     while (true) {
         string link_to_process = "";
         bool is_empty; 
@@ -171,19 +178,14 @@ int main() {
         int msgs_left;
         while ((msg = curl_multi_info_read(multi_handle, &msgs_left))) {
             if (msg->msg == CURLMSG_DONE) {
+                auto start_ = std::chrono::steady_clock::now();
+
                 CURL* eh = msg->easy_handle;
 
                 string* buffer = buffers[eh];
                 string link = link_data[eh];
                 long response_code;
                 curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &response_code);
-
-                if (msg->data.result == CURLE_OK && response_code < 400) {
-                    cout << "success: " << ++cnt << "\n";
-                }
-                else {
-                    cerr << "FAILED for [" << link << "] (Code: " << response_code << "). Error: " << curl_easy_strerror(msg->data.result) << endl;
-                }
 
                 if (ENABLE_DB_UPLOAD) {
                     string Body;
@@ -214,6 +216,15 @@ int main() {
                     headersMap.erase(it);
                 }
 
+                if (msg->data.result == CURLE_OK && response_code < 400) {
+                    string log = "success: " + to_string(++cnt) + " " + GetTakenTime(start_) + "\n";
+                    cout << log;
+                }
+                else {
+                    string log = "FAILED for [" + link + "] (Code: " + to_string(response_code) + "). Error: " + curl_easy_strerror(msg->data.result) + " " + GetTakenTime(start_) + "\n";
+                    cerr << log;
+                }
+
                 delete buffer;
                 buffers.erase(eh);
                 link_data.erase(eh);
@@ -223,6 +234,9 @@ int main() {
         }
 
         if (bodies.empty() || bodies.size() < BODIES_THRESHOLD) continue;
+        string log = to_string(bodies.size()) + " HTML Crawled in " + GetTakenTime(start) + "\n";
+        cout << log;
+        start = std::chrono::steady_clock::now();
         thread postHTMLContentThread(PostHTMLContent, bodies);
         postHTMLContentThread.detach();
         bodies.clear();

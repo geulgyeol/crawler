@@ -119,6 +119,7 @@ struct RequestData {
 
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
 bool IsAllowedByRobotsGeneral(const string& fullUrl);
+string GetTakenTime(std::chrono::steady_clock::time_point start);
 
 void Delay(int milliseconds, string thread) {
     chrono::steady_clock::time_point lastTime;
@@ -160,6 +161,8 @@ void Delay(char blogType, const int DELAY_MILLI_N, const int DELAY_MILLI_T, stri
 void Publish(pubsub::Publisher publisher, vector<string> contents, vector<bool> checker = {}) try {
     vector<google::cloud::future<google::cloud::StatusOr<string>>> futures;
 
+    auto start = std::chrono::steady_clock::now();
+
     for (int i = 0; i < contents.size(); i++) {
         if (!checker.empty() && checker.size() > i) {
             if (!checker[i]) continue;
@@ -181,9 +184,13 @@ void Publish(pubsub::Publisher publisher, vector<string> contents, vector<bool> 
                 << id.status() << "\n";
         }
         else {
-            cout << "\"" << contents[i] << "\" published with id=" << *id << "\n";
+            string log = "\"" + contents[i] + "\" published with id=" + *id + "\n";
+            cout << log;
         }
     }
+
+    string log = to_string(futures.size()) + " Publishing in " + GetTakenTime(start) + "\n";
+    cout << log;
 }
 catch (google::cloud::Status const& status) {
     cerr << "google::cloud::Status thrown: " << status << "\n";
@@ -191,6 +198,10 @@ catch (google::cloud::Status const& status) {
 
 
 void Subscribe(pubsub::Subscriber subscriber, queue<string> *messageQueue, bool *subscribeEnabled, const int waitingTime = DEFAULT_SUB_WAITING_TIME) try {
+    int subscribeCnt = 0;
+    
+    auto start = std::chrono::steady_clock::now();
+
     while (true) {
         {
             lock_guard<mutex> lock(subscribeEnabledMutex);
@@ -204,18 +215,19 @@ void Subscribe(pubsub::Subscriber subscriber, queue<string> *messageQueue, bool 
             lock_guard<mutex> lock(subscribeEnabledMutex);
             is_enabled = *subscribeEnabled;
         }
-        
+
         if (is_enabled) {
             cout << "Listening for messages on subscription" << endl;
 
             auto session = subscriber.Subscribe(
                 [&](pubsub::Message const& m, pubsub::AckHandler h) {
                     move(h).ack();
-                    
+
                     {
                         lock_guard<mutex> lock(messageQueueMutex);
                         messageQueue->push(m.data());
                     }
+                    subscribeCnt++;
 
                     string receiveMessage = " # Received message: " + m.data() + "\n";
                     cout << receiveMessage;
@@ -244,6 +256,8 @@ void Subscribe(pubsub::Subscriber subscriber, queue<string> *messageQueue, bool 
 
             session.cancel();
             auto session_status = session.get();
+            string log = to_string(subscribeCnt) + " Subscribing in " + GetTakenTime(start) + "\n";
+            cout << log;
             cout << "session End, status = " << session_status << "\n";
         }
 
@@ -295,7 +309,7 @@ struct curl_slist* SetCURL(CURL* curl, string* readBuffer, string url, string re
 
 
 void PrintProgressBar(int current, int total) {
-    int barWidth = 50;
+    /*int barWidth = 50;
     float progress = (float)current / total;
 
     cout << "[";
@@ -304,8 +318,9 @@ void PrintProgressBar(int current, int total) {
         if (i < pos) cout << "=";
         else if (i == pos) cout << ">";
         else cout << " ";
-    }
-    cout << "] " << int(progress * 100.0) << "% " << "(" << current << "/" << total << ")" << "\r";
+    }*/
+    //cout << "] " << int(progress * 100.0) << "% " << "(" << current << "/" << total << ")" << "\r";
+    cout << "(" << current << "/" << total << ")" << "\r";
     cout.flush();
 }
 
@@ -648,6 +663,8 @@ vector<bool> RegisterLinks(CURL* curl, vector<string> links) {
 void PostHTMLContent(const map<string, string> bodies) {
     if (bodies.empty()) return;
 
+    auto start = std::chrono::steady_clock::now();
+
     string readBuffer;
 
     CURL* curl = curl_easy_init();
@@ -690,6 +707,9 @@ void PostHTMLContent(const map<string, string> bodies) {
         else {
             cerr << "HTML POST FAILED.\n";
         }
+
+        string log = to_string(bodies.size()) + " HTML Posting in " + GetTakenTime(start) + "\n";
+        cout << log;
     }
 }
 
@@ -720,4 +740,17 @@ bool DeleteFromStorage(CURL* curl, const string link, const string storage) { //
     }
 
     return httpCode == 201;
+}
+
+
+string GetTakenTime(std::chrono::steady_clock::time_point start) {
+    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+
+    auto duration = end - start;
+
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+
+    string taken = to_string(ms) + "ms";
+
+    return taken;
 }
