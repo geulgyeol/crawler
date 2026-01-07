@@ -122,28 +122,25 @@ bool IsAllowedByRobotsGeneral(const string& fullUrl);
 string GetTakenTime(std::chrono::steady_clock::time_point start);
 
 void Delay(int milliseconds, string thread) {
-    chrono::steady_clock::time_point lastTime;
+    using clock = std::chrono::steady_clock;
+
+    clock::time_point last;
     {
-        lock_guard<mutex> lock(lastTimesMutex);
-        if (lastTimes.find(thread) == lastTimes.end()) {
-            lastTimes.insert({ thread, chrono::steady_clock::now() });
+        std::lock_guard<std::mutex> lock(lastTimesMutex);
+        auto it = lastTimes.find(thread);
+        if (it == lastTimes.end()) {
+            it = lastTimes.emplace(thread, clock::now()).first;
         }
-        lastTime = lastTimes[thread];
+        last = it->second;
     }
 
-    while (chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - lastTime).count() < milliseconds) {
-        string result = to_string(chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now().time_since_epoch() - lastTime.time_since_epoch()).count()) + " / " + to_string(chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now().time_since_epoch()).count()) + " / " + to_string(chrono::duration_cast<chrono::milliseconds>(lastTime.time_since_epoch()).count()) + "\n";
-        this_thread::sleep_for(chrono::milliseconds(5));
-        continue;
-    }
+    auto target = last + std::chrono::milliseconds(milliseconds);
+    std::this_thread::sleep_until(target);
 
-    if (thread == "main") {
-        //cout << chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - lastTime).count() << "ms in main thread\n";
+    {
+        std::lock_guard<std::mutex> lock(lastTimesMutex);
+        lastTimes[thread] = clock::now();
     }
-
-    lastTimes[thread] = chrono::steady_clock::now();
-    
-    //this_thread::sleep_for(chrono::milliseconds(milliseconds));
 }
 
 void Delay(char blogType, const int DELAY_MILLI_N, const int DELAY_MILLI_T, string thread) {
@@ -660,7 +657,7 @@ vector<bool> RegisterLinks(CURL* curl, vector<string> links) {
     return checker;
 }
 
-void PostHTMLContent(const map<string, string> bodies) {
+void PostHTMLContent(map<string, string>&& bodies) {
     if (bodies.empty()) return;
 
     auto start = std::chrono::steady_clock::now();
