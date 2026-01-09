@@ -227,7 +227,7 @@ int main() {
                 }
 
                 if (msg->data.result == CURLE_OK && response_code < 400) {
-                    string log = "success: " + to_string(++cnt) + " " + GetTakenTime(start_) + "\n";
+                    string log = "success: " + to_string(++cnt) + " " + GetTakenTime(start_) + " Taken: " + to_string(total_time) + "s for [" + link + "]\n";
                     cout << log;
                 }
                 else {
