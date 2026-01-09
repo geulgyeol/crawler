@@ -194,6 +194,8 @@ int main() {
                 string link = link_data[eh];
                 long response_code;
                 curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &response_code);
+                double total_time = 0.0;
+                curl_easy_getinfo(eh, CURLINFO_TOTAL_TIME, &total_time);
 
                 if (ENABLE_DB_UPLOAD) {
                     string Body;
@@ -229,8 +231,11 @@ int main() {
                     cout << log;
                 }
                 else {
-                    string log = "FAILED for [" + link + "] (Code: " + to_string(response_code) + "). Error: " + curl_easy_strerror(msg->data.result) + " " + GetTakenTime(start_) + "\n";
+                    string log = "FAILED for [" + link + "] (Code: " + to_string(response_code) + "). Error: " + curl_easy_strerror(msg->data.result) + " " + GetTakenTime(start_) + " Taken: " + to_string(total_time) + "s\n";
                     cerr << log;
+
+                    // re-publish the failed link
+                    Publish(*blogWritingPublisher, { link });
                 }
 
                 delete buffer;
