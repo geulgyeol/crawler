@@ -134,6 +134,10 @@ int main() {
 
     auto start = std::chrono::steady_clock::now();
 
+    using clock = std::chrono::steady_clock;
+    auto nextAdd = clock::now();
+    int running_handles = 0;
+
     while (true) {
         string link_to_process = "";
         bool is_empty; 
