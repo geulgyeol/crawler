@@ -283,6 +283,7 @@ struct curl_slist* SetCURL(CURL* curl, string* readBuffer, string url, string re
     curl_easy_setopt(curl, CURLOPT_PRIVATE, readBuffer);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);  // todo:delete
 
     headers = curl_slist_append(headers, USER_AGENT.c_str());
     headers = curl_slist_append(headers, "X-Requested-With: XMLHttpRequest");
