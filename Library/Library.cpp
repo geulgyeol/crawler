@@ -52,6 +52,9 @@ const int DEFAULT_SUB_WAITING_TIME = config.DEFAULT_SUB_WAITING_TIME;
 
 const int NAVER_TIMEOUT_WAITING_TIME = config.NAVER_TIMEOUT_WAITING_TIME;
 
+const long CONNECTION_TIMEOUT_SECONDS = config.CONNECTION_TIMEOUT_SECONDS;
+const long RESPONSE_TIMEOUT_SECONDS = config.RESPONSE_TIMEOUT_SECONDS;
+
 const int ENABLE_MESSAGE_QUEUE_THRESHOLD = config.ENABLE_MESSAGE_QUEUE_THRESHOLD;
 const int DISABLE_MESSAGE_QUEUE_THRESHOLD = config.DISABLE_MESSAGE_QUEUE_THRESHOLD;
 
@@ -59,6 +62,7 @@ const long long ROBOTS_CACHE_DURATION_SECONDS = config.ROBOTS_CACHE_DURATION_SEC
 const size_t MAX_ROBOTS_CACHE_SIZE = config.MAX_ROBOTS_CACHE_SIZE;
 
 const bool ENABLE_DB_UPLOAD = config.ENABLE_DB_UPLOAD;
+const bool VERBOSE = config.VERBOSE;
 
 map<const string, const int> CRAWL_PER_SECOND_MAP = config.CRAWL_PER_SECOND_MAP;
 
@@ -281,8 +285,9 @@ struct curl_slist* SetCURL(CURL* curl, string* readBuffer, string url, string re
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, readBuffer);
     curl_easy_setopt(curl, CURLOPT_PRIVATE, readBuffer);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, CONNECTION_TIMEOUT_SECONDS);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, RESPONSE_TIMEOUT_SECONDS);
+    if (VERBOSE) curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
     headers = curl_slist_append(headers, USER_AGENT.c_str());
     headers = curl_slist_append(headers, "X-Requested-With: XMLHttpRequest");
