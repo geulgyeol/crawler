@@ -34,6 +34,9 @@ public:
 
 	const int NAVER_TIMEOUT_WAITING_TIME;				// Waiting Time When Naver Blog Timeouted
 
+	const long CONNECTION_TIMEOUT_SECONDS;				// Connection Timeout Seconds
+	const long RESPONSE_TIMEOUT_SECONDS;				// Response Timeout Seconds
+
 	const int ENABLE_MESSAGE_QUEUE_THRESHOLD;			// Threshold to Enable Subscriber
 	const int DISABLE_MESSAGE_QUEUE_THRESHOLD;			// Threshold to Disable Subscriber
 
@@ -41,6 +44,7 @@ public:
 	const size_t MAX_ROBOTS_CACHE_SIZE;					// robots.txt Cache Max Count Limit (If exceeded limit, clear all cathy)
 
 	const bool ENABLE_DB_UPLOAD;						// enable request to cluster
+	const bool VERBOSE;									// enable debug output
 
 	map<const string, const int> CRAWL_PER_SECOND_MAP;	// Crawl Per Second (**DONT** change string, 10 = crawl per 0.1s)
 };
