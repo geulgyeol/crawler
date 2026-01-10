@@ -17,6 +17,7 @@ Config::Config() :
     HTML_STORAGE_ENDPOINT("html-precompressor.default.svc.cluster.local"), //
     MAX_CONCURRENT_REQUESTS(10),
     DEFAULT_SUB_WAITING_TIME(30),
+    NAVER_TIMEOUT_WAITING_TIME(60000),
     BODIES_THRESHOLD(100),
     ENABLE_MESSAGE_QUEUE_THRESHOLD(200),
     DISABLE_MESSAGE_QUEUE_THRESHOLD(400),
@@ -29,6 +30,6 @@ Config::Config() :
     CRAWL_PER_SECOND_MAP.insert({ "LinkFinder_T", 25 });
     CRAWL_PER_SECOND_MAP.insert({ "ProfileFinder_N", 4 });
     CRAWL_PER_SECOND_MAP.insert({ "ProfileFinder_T", 6 });
-    CRAWL_PER_SECOND_MAP.insert({ "HTMLCrawler_N", 15 });
+    CRAWL_PER_SECOND_MAP.insert({ "HTMLCrawler_N", 10 });
     CRAWL_PER_SECOND_MAP.insert({ "HTMLCrawler_T", 25 });
 }
