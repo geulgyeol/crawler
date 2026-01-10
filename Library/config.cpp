@@ -15,9 +15,10 @@ Config::Config() :
     USER_AGENT("User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:144.0; compatible; " + CRAWLER_NAME + "/2.0; +https://github.com/geulgyeol) Gecko/20100101 Firefox/144.0"),
     LINK_KV_ENDPOINT("localhost:8080"), //link-kv.default.svc.cluster.local 
     HTML_STORAGE_ENDPOINT("localhost:8081"), //html-storage.default.svc.cluster.local
-    MAX_CONCURRENT_REQUESTS(10),
+    MAX_CONCURRENT_REQUESTS(20),
     BODIES_THRESHOLD(100),
     DEFAULT_SUB_WAITING_TIME(5),
+    NAVER_TIMEOUT_WAITING_TIME(60000),
     ENABLE_MESSAGE_QUEUE_THRESHOLD(40),
     DISABLE_MESSAGE_QUEUE_THRESHOLD(100),
     ROBOTS_CACHE_DURATION_SECONDS(3600),

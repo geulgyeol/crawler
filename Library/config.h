@@ -32,6 +32,8 @@ public:
 
 	const int DEFAULT_SUB_WAITING_TIME;					// Default Subscription Waiting Time
 
+	const int NAVER_TIMEOUT_WAITING_TIME;				// Waiting Time When Naver Blog Timeouted
+
 	const int ENABLE_MESSAGE_QUEUE_THRESHOLD;			// Threshold to Enable Subscriber
 	const int DISABLE_MESSAGE_QUEUE_THRESHOLD;			// Threshold to Disable Subscriber
 
