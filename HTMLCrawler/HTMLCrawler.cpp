@@ -187,16 +187,18 @@ int main() {
                 string link = link_data[eh];
                 long response_code;
                 curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &response_code);
+                double total_time = 0.0;
+                curl_easy_getinfo(eh, CURLINFO_TOTAL_TIME, &total_time);
 
                 bool isSuccess = false;
 
                 if (msg->data.result == CURLE_OK && response_code < 400) {
-                    string log = "success: " + to_string(++cnt) + " " + GetTakenTime(start_) + "\n";
+                    string log = "success: " + to_string(++cnt) + " " + GetTakenTime(start_) + " Taken: " + to_string(total_time) + "s for [" + link + "]\n";
                     cout << log;
                     isSuccess = true;
                 }
                 else {
-                    string log = "FAILED for [" + link + "] (Code: " + to_string(response_code) + "). Error: " + curl_easy_strerror(msg->data.result) + " " + GetTakenTime(start_) + "\n";
+                    string log = "FAILED for [" + link + "] (Code: " + to_string(response_code) + "). Error: " + curl_easy_strerror(msg->data.result) + " " + GetTakenTime(start_) + " Taken: " + to_string(total_time) + "s\n";
                     cerr << log;
 
                     if (msg->data.result == 28) {
@@ -232,6 +234,8 @@ int main() {
 
                         continue;
                     }
+
+                    messageQueue.push(link);
                 }
 
                 if (isSuccess) {
