@@ -24,10 +24,20 @@ int main() {
     curl_global_init(CURL_GLOBAL_DEFAULT);
     curl = curl_easy_init();
 
+    queue<Message> messageQueue;
+
+    //thread linkFinderSubscribeThread(GetQueue, "content", &messageQueue);
+    //linkFinderSubscribeThread.detach();
+    //while (true) {}
+
     if (curl) {
-        while (true) {
-            
-        }
+        vector<string> payloads = {"Nhaesung_88","Tnelastory","N1_do_everything","Tmungdenson"};
+        PostQueue("user", payloads);
+
+        //GetQueue("content");
+
+        /*vector<int> ids = {11,12,13,14,15,16,17,18,19,20};
+        DeleteQueue(ids, "content");*/
     }
 
     curl_global_cleanup();

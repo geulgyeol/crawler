@@ -25,7 +25,8 @@ public:
 
 	const string LINK_KV_ENDPOINT;						// link-kv
 	const string HTML_STORAGE_ENDPOINT;					// html-storage
-	
+	const string QUEUE_ENDPOINT;						// queue
+
 	const int MAX_CONCURRENT_REQUESTS;					// Max Concurrent Requests Count (**NOT RECOMMEND** change Default: 10)
 	
 	const int BODIES_THRESHOLD;							// Threshold to Upload on html-storage
