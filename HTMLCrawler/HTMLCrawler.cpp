@@ -21,8 +21,8 @@ unique_ptr<pubsub::Subscriber> blogProfileSubscriber;
 unique_ptr<pubsub::Subscriber> blogWritingLinkForProfileSubscriber;
 unique_ptr<pubsub::Subscriber> blogWritingLinkForContentSubscriber;
 
-
-queue<string> messageQueue;
+queue<Message> messageQueue;
+queue<int> deleteIdsQueue;
 bool subscribeEnabled = false;
 
 
@@ -126,8 +126,10 @@ int main() {
     map<CURL*, string*> buffers;
     map<CURL*, string> link_data;
 
-    thread htmlCrawlerSubscribeThread(Subscribe, move(*blogWritingLinkForContentSubscriber), &messageQueue, &subscribeEnabled, DEFAULT_SUB_WAITING_TIME);
-    htmlCrawlerSubscribeThread.detach();
+    thread linkFinderSubscribeThread(GetQueue, "content", &messageQueue);
+    linkFinderSubscribeThread.detach();
+    thread linkFinderDeleteThread(DeleteQueue, "content", &deleteIdsQueue);
+    linkFinderDeleteThread.detach();
 
     int links_index = 0;
     int cnt = 0;
@@ -145,19 +147,29 @@ int main() {
             auto now = clock::now();
 
             while ((int)buffers.size() < MAX_CONCURRENT_REQUESTS && now >= nextAdd) {
-                std::string link_to_process;
+                Message message;
                 bool has;
                 {
                     std::lock_guard<std::mutex> lock(messageQueueMutex);
                     has = !messageQueue.empty();
                     if (has) {
-                        link_to_process = std::move(messageQueue.front());
+                        message = std::move(messageQueue.front());
                         messageQueue.pop();
                     }
                 }
                 if (!has) {
                     cout << "Queue is empty" << endl;
                     break;
+                }
+
+                string link_to_process = message.message;
+                if (message.isLocked()) {
+                    continue;
+                }
+
+                {
+                    lock_guard<mutex> lock(deleteQueueMutex);
+                    deleteIdsQueue.push(message.id);
                 }
 
                 auto current_delay = (link_to_process[0] == 'N') ? DELAY_NANOS_N : DELAY_NANOS_T;
@@ -211,11 +223,13 @@ int main() {
 
                     if (msg->data.result == 28) {
                         vector<CURL*> failedHandles;
+                        vector<string> failedMessages;
+
                         for (const auto& pair : link_data) {
                             if (pair.second[0] == 'N') {
                                 {
                                     lock_guard<mutex> lock(messageQueueMutex);
-                                    messageQueue.push(pair.second);
+                                    failedMessages.push_back(pair.second);
                                 }
 
                                 failedHandles.push_back(pair.first);
@@ -238,12 +252,14 @@ int main() {
                             curl_easy_cleanup(failedHandle);
                         }
 
+                        PostQueue("content", failedMessages);
                         Delay(NAVER_TIMEOUT_WAITING_TIME, "main");
 
                         continue;
                     }
 
-                    messageQueue.push(link);
+                    vector<string> v = { link };
+                    PostQueue("content", v);
                 }
 
                 if (ENABLE_DB_UPLOAD && isSuccess) {

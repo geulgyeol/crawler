@@ -20,7 +20,8 @@ unique_ptr<pubsub::Subscriber> blogWritingLinkForProfileSubscriber;
 unique_ptr<pubsub::Subscriber> blogWritingLinkForContentSubscriber;
 
 
-queue<string> messageQueue;
+queue<Message> messageQueue;
+queue<int> deleteQueue;
 bool subscribeEnabled = false;
 
 struct TistoryRequestData {
@@ -53,8 +54,10 @@ int main() {
     curl_global_init(CURL_GLOBAL_DEFAULT);
     CURL* curl;
 
-    thread linkFinderSubscribeThread(Subscribe, *blogProfileSubscriber, &messageQueue, &subscribeEnabled, DEFAULT_SUB_WAITING_TIME);
+    thread linkFinderSubscribeThread(GetQueue, "user", &messageQueue);
     linkFinderSubscribeThread.detach();
+    thread linkFinderDeleteThread(DeleteQueue, "user", &deleteQueue);
+    linkFinderDeleteThread.detach();
 
     while (true) {
         bool is_empty;
@@ -68,11 +71,21 @@ int main() {
             continue;
         }
 
-        string link;
+        Message message;
         {
             std::lock_guard<std::mutex> lock(messageQueueMutex);
-            link = { messageQueue.front() };
+            message = { messageQueue.front() };
             messageQueue.pop();
+        }
+
+        string link = message.message;
+        if (message.isLocked()) {
+            continue;
+        }
+
+        {
+            lock_guard<mutex> lock(deleteQueueMutex);
+            deleteQueue.push(message.id);
         }
 
         vector<string*> buffers;
@@ -172,7 +185,8 @@ int main() {
                 cout << "\n";
 
                 if (!ENABLE_DB_UPLOAD || RegisterLink(curl, "LinkFinder_" + link_t)) {
-                    Publish(*blogWritingPublisher, validPages);
+                    PostQueue("profile", validPages);
+                    PostQueue("content", validPages);
                 }
 
                 Delay(DELAY_MILLI_N, "main");
@@ -337,7 +351,8 @@ int main() {
                 curl_multi_cleanup(multi_handle);
 
                 if (!ENABLE_DB_UPLOAD || RegisterLink(curl, "LinkFinder_" + link_t)) {
-                    Publish(*blogWritingPublisher, validPages);
+                    PostQueue("profile", validPages);
+                    PostQueue("content", validPages);
                 }
 
                 Delay(DELAY_MILLI_T, "main");

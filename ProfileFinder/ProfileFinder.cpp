@@ -20,7 +20,8 @@ unique_ptr<pubsub::Subscriber> blogWritingLinkForProfileSubscriber;
 unique_ptr<pubsub::Subscriber> blogWritingLinkForContentSubscriber;
 
 
-queue<string> messageQueue;
+queue<Message> messageQueue;
+queue<int> deleteQueue;
 bool subscribeEnabled = false;
 
 
@@ -49,8 +50,10 @@ int main() {
     curl_global_init(CURL_GLOBAL_DEFAULT);
     CURL* curl;
 
-    thread profileFinderSubscribeThread(Subscribe, *blogWritingLinkForProfileSubscriber, &messageQueue, &subscribeEnabled, DEFAULT_SUB_WAITING_TIME);
-    profileFinderSubscribeThread.detach();
+    thread linkFinderSubscribeThread(GetQueue, "profile", &messageQueue);
+    linkFinderSubscribeThread.detach();
+    thread linkFinderDeleteThread(DeleteQueue, "profile", &deleteQueue);
+    linkFinderDeleteThread.detach();
 
     map<string, bool> visited;
     if (!ENABLE_DB_UPLOAD) {
@@ -69,11 +72,22 @@ int main() {
             continue;
         }
 
-        string link;
+
+        Message message;
         {
             std::lock_guard<std::mutex> lock(messageQueueMutex);
-            link = { messageQueue.front() };
+            message = { messageQueue.front() };
             messageQueue.pop();
+        }
+
+        string link = message.message;
+        if (message.isLocked()) {
+            continue;
+        }
+
+        {
+            lock_guard<mutex> lock(deleteQueueMutex);
+            deleteQueue.push(message.id);
         }
 
         string readBuffer;
@@ -145,7 +159,7 @@ int main() {
                     }
                 }
 
-                Publish(*blogProfilePublisher, blogIds, registerChecker);
+                PostQueue("user", blogIds, registerChecker);
                 Delay(DELAY_MILLI_N, "main");
             }
             else if (link[0] == 'T') {
@@ -211,7 +225,7 @@ int main() {
                     }
                 }
 
-                Publish(*blogProfilePublisher, blogHomepages, registerChecker);
+                PostQueue("user", blogHomepages, registerChecker);
                 Delay(DELAY_MILLI_T, "main");
             }
 
