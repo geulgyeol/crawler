@@ -15,7 +15,7 @@ Config::Config() :
     USER_AGENT("User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:146.0; compatible; " + CRAWLER_NAME + "/2.0; +https://github.com/geulgyeol) Gecko/20100101 Firefox/145.0"),
     LINK_KV_ENDPOINT("link-kv.default.svc.cluster.local"), //
     HTML_STORAGE_ENDPOINT("html-precompressor.default.svc.cluster.local"), //
-    QUEUE_ENDPOINT("localhost:8082"),
+    QUEUE_ENDPOINT("queue.default.svc.cluster.local"),
     MAX_CONCURRENT_REQUESTS(10),
     DEFAULT_SUB_WAITING_TIME(30),
     NAVER_TIMEOUT_WAITING_TIME(60000),
