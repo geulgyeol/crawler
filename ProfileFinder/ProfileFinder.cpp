@@ -1,46 +1,29 @@
-#include "../Library/Library.cpp" //109 line
+#include "../Library/Library.cpp"
 
 #ifdef _WIN32
 #include <windows.h>
 #endif
 
 using namespace std;
-namespace pubsub = ::google::cloud::pubsub;
 
 const int CRAWL_PER_SECOND_N = CRAWL_PER_SECOND_MAP.at("ProfileFinder_N");
 const int CRAWL_PER_SECOND_T = CRAWL_PER_SECOND_MAP.at("ProfileFinder_T");
 const int DELAY_MILLI_N = 1000 / CRAWL_PER_SECOND_N;
 const int DELAY_MILLI_T = 1000 / CRAWL_PER_SECOND_T;
 
-unique_ptr<pubsub::Publisher> blogProfilePublisher;
-unique_ptr<pubsub::Publisher> blogWritingPublisher;
-
-unique_ptr<pubsub::Subscriber> blogProfileSubscriber;
-unique_ptr<pubsub::Subscriber> blogWritingLinkForProfileSubscriber;
-unique_ptr<pubsub::Subscriber> blogWritingLinkForContentSubscriber;
-
-
 queue<Message> messageQueue;
 queue<int> deleteQueue;
-bool subscribeEnabled = false;
 
 
 int main() {
     cin.tie(NULL);
     ios::sync_with_stdio(false);
 
-    blogProfilePublisher = make_unique<pubsub::Publisher>(pubsub::Publisher(pubsub::MakePublisherConnection(pubsub::Topic(PROJECT_ID, PROFILE_TOPIC_ID), google::cloud::Options{}.set<pubsub::MessageOrderingOption>(true))));
-    blogWritingPublisher = make_unique<pubsub::Publisher>(pubsub::Publisher(pubsub::MakePublisherConnection(pubsub::Topic(PROJECT_ID, WRITING_TOPIC_ID), google::cloud::Options{}.set<pubsub::MessageOrderingOption>(true))));
-
-    blogProfileSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, PROFILE_SUB_ID))));
-    blogWritingLinkForProfileSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_PROFILE_SUB_ID))));
-    blogWritingLinkForContentSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_CONTENT_SUB_ID))));
-
-    //Publish(*blogWritingPublisher, { "Nhaesung_88/223597388359" });
-    //Publish(*blogWritingPublisher, { "Tlsas4565/8838853" });
-    //Publish(*blogWritingPublisher, { "Tlsas4565/8838853" });
-    //Publish(*blogWritingPublisher, { "Tnelastory/35" });
-    //Publish(*blogWritingPublisher, { "Tnelastory/37" });
+    //Nhaesung_88/223597388359
+    //Tlsas4565/8838853
+    //Tlsas4565/8838853
+    //Tnelastory/35
+    //Tnelastory/37
 
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
@@ -54,11 +37,6 @@ int main() {
     linkFinderSubscribeThread.detach();
     thread linkFinderDeleteThread(DeleteQueue, "profile", &deleteQueue);
     linkFinderDeleteThread.detach();
-
-    map<string, bool> visited;
-    if (!ENABLE_DB_UPLOAD) {
-        visited.insert({ "visited map is not empty", true });
-    }
 
     while (true) {
         bool is_empty;
@@ -107,7 +85,7 @@ int main() {
                 string referer = "https://blog.naver.com/SympathyHistoryList.naver?blogId=" + profileName + "&logNo=" + writingNumber;
 
                 if (!IsAllowedByRobotsGeneral(url)) {
-                    cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
+                    cout << "SKIP: Robots.txt denied access for [" + link + "] URL [" + url + "]\n";
                     Delay(DELAY_MILLI_N, "main");
                     continue;
                 }
@@ -117,9 +95,10 @@ int main() {
                 CURLcode res = curl_easy_perform(curl);
                 curl_slist_free_all(headers);
 
-                if (res != CURLE_OK)
-                    cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << endl;
-
+                if (res != CURLE_OK) {
+                    string str_t(curl_easy_strerror(res));
+                    cerr << "curl_easy_perform() failed: " + str_t + "\n";
+                }
 
                 regex sympathyBlogIdRegex(R"regex("domainIdOrBlogId":"(.*?)")regex");
                 smatch match;
@@ -132,16 +111,9 @@ int main() {
                 cout << "Collect Sympathy Blogger Ids\n";
                 for (auto j = begin; j != end; ++j) {
                     string id = "N" + (*j)[1].str();
-                    if (!ENABLE_DB_UPLOAD) {
-                        if (visited.find(id) == visited.end()) {
-                            blogIds.push_back(id);
-                            visited.insert({ id, true });
-                            cout << "Current Collect : " << ++collectCnt << "\r";
-                        }
-                    }
-                    else if (CheckLinkNotVisited(curl, id)) {
+                    if (CheckLinkNotVisited(curl, id)) {
                         blogIds.push_back(id);
-                        cout << "Current Collect : " << ++collectCnt << "\r";
+                        cout << "Current Collect : " + to_string(++collectCnt) + "\r";
                     }
                 }
                 cout << "\n";
@@ -153,10 +125,8 @@ int main() {
 
                 vector<bool> registerChecker(blogIds.size(), true);
 
-                if (ENABLE_DB_UPLOAD) {
-                    for (int i = 0; i < blogIds.size(); i++) {
-                        registerChecker[i] = RegisterLink(curl, blogIds[i]);
-                    }
+                for (int i = 0; i < blogIds.size(); i++) {
+                    registerChecker[i] = RegisterLink(curl, blogIds[i]);
                 }
 
                 PostQueue("user", blogIds, registerChecker);
@@ -166,7 +136,7 @@ int main() {
                 string url = "https://" + profileName + ".tistory.com/m/api/" + writingNumber + "/comment";
 
                 if (!IsAllowedByRobotsGeneral(url)) {
-                    cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
+                    cout << "SKIP: Robots.txt denied access for [" + link + "] URL [" + url + "]\n";
                     Delay(DELAY_MILLI_T, "main");
                     continue;
                 }
@@ -176,8 +146,10 @@ int main() {
                 CURLcode res = curl_easy_perform(curl);
                 curl_slist_free_all(headers);
 
-                if (res != CURLE_OK)
-                    cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << endl;
+                if (res != CURLE_OK) {
+                    string str_t(curl_easy_strerror(res));
+                    cerr << "curl_easy_perform() failed: " + str_t + "\n";
+                }
 
                 regex commentBlogHomepageRegex("\"homepage\"\\s*:\\s*\"https://([^\"/]*)");
                 smatch match;
@@ -197,16 +169,9 @@ int main() {
                     smatch matchId;
                     if (regex_search(full, matchId, commentBlogHomepageRegex)) {
                         string id = "T" + matchId[1].str();
-                        if (!ENABLE_DB_UPLOAD) {
-                            if (visited.find(id) == visited.end()) {
-                                blogHomepages.push_back(id);
-                                visited.insert({ id, true });
-                                cout << "Current Collect : " << ++collectCnt << "\r";
-                            }
-                        }
-                        else if (CheckLinkNotVisited(curl, id)) {
+                        if (CheckLinkNotVisited(curl, id)) {
                             blogHomepages.push_back(id);
-                            cout << "Current Collect : " << ++collectCnt << "\r";
+                            cout << "Current Collect : " + to_string(++collectCnt) + "\r";
                         }
                     }
                 }
@@ -219,10 +184,8 @@ int main() {
 
                 vector<bool> registerChecker(blogHomepages.size(), true);
 
-                if (ENABLE_DB_UPLOAD) {
-                    for (int i = 0; i < blogHomepages.size(); i++) {
-                        registerChecker[i] = RegisterLink(curl, blogHomepages[i]);
-                    }
+                for (int i = 0; i < blogHomepages.size(); i++) {
+                    registerChecker[i] = RegisterLink(curl, blogHomepages[i]);
                 }
 
                 PostQueue("user", blogHomepages, registerChecker);

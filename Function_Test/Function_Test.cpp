@@ -5,7 +5,6 @@
 #endif
 
 using namespace std;
-namespace pubsub = ::google::cloud::pubsub;
 
 
 int main() {
@@ -17,14 +16,10 @@ int main() {
     SetConsoleCP(CP_UTF8);
 #endif
 
-    map<string, bool> visited;
-
     CURL* curl;
     string readBuffer;
     curl_global_init(CURL_GLOBAL_DEFAULT);
     curl = curl_easy_init();
-
-    queue<Message> messageQueue;
 
     //thread linkFinderSubscribeThread(GetQueue, "content", &messageQueue);
     //linkFinderSubscribeThread.detach();

@@ -1,9 +1,8 @@
 ﻿
 #include "pch.h"
 #include "framework.h"
-#include "google/cloud/pubsub/publisher.h"
-#include "google/cloud/pubsub/subscriber.h"
 #include "../Library/config.h"
+#include <iostream>
 #include <limits>
 #include <string>
 #include <thread>
@@ -19,24 +18,13 @@
 #include <queue>
 #include <fstream>
 #include <filesystem>
+#include <set>
 
 
 using namespace std;
-namespace pubsub = ::google::cloud::pubsub;
 
-
-const string TIMEOUTED = "/TIMEOUTED";
 
 Config config = Config();
-
-const string PROJECT_ID = config.PROJECT_ID;
-
-const string PROFILE_TOPIC_ID = config.PROFILE_TOPIC_ID;
-const string WRITING_TOPIC_ID = config.WRITING_TOPIC_ID;
-
-const string PROFILE_SUB_ID = config.PROFILE_SUB_ID;
-const string WRITING_FOR_PROFILE_SUB_ID = config.WRITING_FOR_PROFILE_SUB_ID;
-const string WRITING_FOR_CONTENT_SUB_ID = config.WRITING_FOR_CONTENT_SUB_ID;
 
 const string CRAWLER_NAME = config.CRAWLER_NAME;
 
@@ -50,9 +38,9 @@ const int MAX_CONCURRENT_REQUESTS = config.MAX_CONCURRENT_REQUESTS;
 
 const int BODIES_THRESHOLD = config.BODIES_THRESHOLD;
 
-const int DEFAULT_SUB_WAITING_TIME = config.DEFAULT_SUB_WAITING_TIME;
-
 const int NAVER_TIMEOUT_WAITING_TIME = config.NAVER_TIMEOUT_WAITING_TIME;
+
+const int QUEUE_TIME_LIMIT = config.QUEUE_TIME_LIMIT;
 
 const long CONNECTION_TIMEOUT_SECONDS = config.CONNECTION_TIMEOUT_SECONDS;
 const long RESPONSE_TIMEOUT_SECONDS = config.RESPONSE_TIMEOUT_SECONDS;
@@ -63,7 +51,6 @@ const int DISABLE_MESSAGE_QUEUE_THRESHOLD = config.DISABLE_MESSAGE_QUEUE_THRESHO
 const long long ROBOTS_CACHE_DURATION_SECONDS = config.ROBOTS_CACHE_DURATION_SECONDS;
 const size_t MAX_ROBOTS_CACHE_SIZE = config.MAX_ROBOTS_CACHE_SIZE;
 
-const bool ENABLE_DB_UPLOAD = config.ENABLE_DB_UPLOAD;
 const bool VERBOSE = config.VERBOSE;
 
 map<const string, const int> CRAWL_PER_SECOND_MAP = config.CRAWL_PER_SECOND_MAP;
@@ -74,7 +61,6 @@ map<string, chrono::steady_clock::time_point> lastTimes;
 
 mutex messageQueueMutex;
 mutex deleteQueueMutex;
-mutex subscribeEnabledMutex;
 mutex lastTimesMutex;
 
 
@@ -141,7 +127,7 @@ struct Message {
     Message(string message_v, int id_v) {
         message = message_v;
         id = id_v;
-        timeLimit = GetCurTimestamp() + 110;
+        timeLimit = GetCurTimestamp() + QUEUE_TIME_LIMIT;
     }
 
     bool isLocked() {
@@ -197,7 +183,7 @@ void PostQueue(string queueName, vector<string>& payloads, vector<bool> checker 
 
     CURL* curl = curl_easy_init();
     if (curl) {
-        string content = "{\"payloads\": [";
+        string content = "{\"payloads\":[";
 
         int payloadSearchCnt = 0;
         int i = 0;
@@ -236,14 +222,11 @@ void PostQueue(string queueName, vector<string>& payloads, vector<bool> checker 
         CURLcode response_code = curl_easy_perform(curl);
         curl_slist_free_all(headers);
         if (response_code == CURLE_OK) {
-            cout << queueName + " Queue POST success.\n";
+            cout << to_string(payloads.size()) + " " + queueName + " Queue POST in " + GetTakenTime(start) + "\n";
         }
         else {
             cerr << queueName + " Queue POST FAILED.\n";
         }
-
-        string log = to_string(payloads.size()) + " " + queueName + " Queue POST in " + GetTakenTime(start) + "\n";
-        cout << log;
     }
 }
 
@@ -263,6 +246,8 @@ void GetQueue(string queueName, queue<Message>* messageQueue) {
             }
 
             if (subscribeEnabled) {
+                bool found = false;
+
                 string url = config.QUEUE_ENDPOINT + "/" + queueName;
 
                 curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
@@ -303,14 +288,17 @@ void GetQueue(string queueName, queue<Message>* messageQueue) {
                             lock_guard<mutex> lock(messageQueueMutex);
                             messageQueue->push(Message(payload, id));
                         }
+
+                        found = true;
                     }
                 }
                 else {
                     cerr << queueName + " Queue GET FAILED.\n";
                 }
 
-                string log = queueName + " Queue GET in " + GetTakenTime(start) + "\n";
-                cout << log;
+                if (found) {
+                    cout << queueName + " Queue GET in " + GetTakenTime(start) + "\n";
+                }
             }
 
             Delay(1000, "subscribe");
@@ -360,7 +348,7 @@ void DeleteQueue(string queueName, queue<int>* deleteQueue) {
             for (const int& id : ids) {
                 content.append(to_string(id));
                 if (++idSearchCnt != ids.size()) {
-                    content.append(", ");
+                    content.append(",");
                 }
             }
 
@@ -389,7 +377,7 @@ void DeleteQueue(string queueName, queue<int>* deleteQueue) {
                 curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
 
                 if (http_code == 200) {
-                    cout << queueName + " Queue DELETE success.\n";
+                    cout << to_string(ids.size()) + " " + queueName + " Queue DELETE in " + GetTakenTime(start) + "\n";
                 }
                 else if (http_code == 400) {
                     cout << queueName + " Queue DELETE FAILED. HTTP Code: " + to_string(http_code) + "\n";
@@ -399,125 +387,10 @@ void DeleteQueue(string queueName, queue<int>* deleteQueue) {
                 cerr << queueName + " Queue DELETE FAILED. HTTP Code: " + to_string(http_code) + "\n";
             }
 
-            string log = to_string(ids.size()) + " " + queueName + " Queue DELETE in " + GetTakenTime(start) + "\n";
-            cout << log;
-
             Delay(1000, "delete");
         }
     }
 }
-
-void Publish(pubsub::Publisher publisher, vector<string> contents, vector<bool> checker = {}) try {
-    vector<google::cloud::future<google::cloud::StatusOr<string>>> futures;
-
-    auto start = std::chrono::steady_clock::now();
-
-    for (int i = 0; i < contents.size(); i++) {
-        if (!checker.empty() && checker.size() > i) {
-            if (!checker[i]) continue;
-        }
-
-        const string content = contents[i];
-        futures.push_back(
-            publisher.Publish(
-                pubsub::MessageBuilder{}
-                .SetData(content)
-                .Build()
-        ));
-    }
-
-    for (int i = 0; i < futures.size(); ++i) {
-        auto id = futures[i].get();
-        if (!id) {
-            cerr << "Publish failed for \"" << contents[i] << "\": "
-                << id.status() << "\n";
-        }
-        else {
-            string log = "\"" + contents[i] + "\" published with id=" + *id + "\n";
-            cout << log;
-        }
-    }
-
-    string log = to_string(futures.size()) + " Publishing in " + GetTakenTime(start) + "\n";
-    cout << log;
-}
-catch (google::cloud::Status const& status) {
-    cerr << "google::cloud::Status thrown: " << status << "\n";
-}
-
-
-void Subscribe(pubsub::Subscriber subscriber, queue<string> *messageQueue, bool *subscribeEnabled, const int waitingTime = DEFAULT_SUB_WAITING_TIME) try {
-    int subscribeCnt = 0;
-    
-    auto start = std::chrono::steady_clock::now();
-
-    while (true) {
-        {
-            lock_guard<mutex> lock(subscribeEnabledMutex);
-            if (messageQueue->empty() || messageQueue->size() < ENABLE_MESSAGE_QUEUE_THRESHOLD) {
-                *subscribeEnabled = true;
-            }
-        }
-
-        bool is_enabled;
-        {
-            lock_guard<mutex> lock(subscribeEnabledMutex);
-            is_enabled = *subscribeEnabled;
-        }
-
-        if (is_enabled) {
-            cout << "Listening for messages on subscription" << endl;
-
-            auto session = subscriber.Subscribe(
-                [&](pubsub::Message const& m, pubsub::AckHandler h) {
-                    move(h).ack();
-
-                    {
-                        lock_guard<mutex> lock(messageQueueMutex);
-                        messageQueue->push(m.data());
-                    }
-                    subscribeCnt++;
-
-                    string receiveMessage = " # Received message: " + m.data() + "\n";
-                    cout << receiveMessage;
-
-                    try {
-                        lock_guard<mutex> lock_q(subscribeEnabledMutex);
-                        lock_guard<mutex> lock_e(messageQueueMutex);
-
-                        if (!messageQueue->empty() && messageQueue->size() > DISABLE_MESSAGE_QUEUE_THRESHOLD) {
-                            *subscribeEnabled = false;
-                        }
-                    }
-                    catch (exception e) {
-                        lock_guard<mutex> lock(subscribeEnabledMutex);
-                        *subscribeEnabled = false;
-                    }
-                }
-            );
-
-            bool still_enabled = true;
-            while (still_enabled) {
-                Delay(100, "subscribe");
-                lock_guard<mutex> lock(subscribeEnabledMutex);
-                still_enabled = *subscribeEnabled;
-            }
-
-            session.cancel();
-            auto session_status = session.get();
-            string log = to_string(subscribeCnt) + " Subscribing in " + GetTakenTime(start) + "\n";
-            cout << log;
-            cout << "session End, status = " << session_status << "\n";
-        }
-
-        Delay(100, "subscribe");
-    }
-}
-catch (google::cloud::Status const& status) {
-    cerr << "google::cloud::Status thrown: " << status << "\n";
-}
-
-
 
 struct curl_slist* SetCURL(CURL* curl, string* readBuffer, string url, string referer = "", string range = "", string request = "") {
     if (readBuffer) {
@@ -559,30 +432,14 @@ struct curl_slist* SetCURL(CURL* curl, string* readBuffer, string url, string re
 
 
 void PrintProgressBar(int current, int total) {
-    /*int barWidth = 50;
-    float progress = (float)current / total;
-
-    cout << "[";
-    int pos = barWidth * progress;
-    for (int i = 0; i < barWidth; ++i) {
-        if (i < pos) cout << "=";
-        else if (i == pos) cout << ">";
-        else cout << " ";
-    }*/
-    //cout << "] " << int(progress * 100.0) << "% " << "(" << current << "/" << total << ")" << "\r";
-    cout << "(" << current << "/" << total << ")" << "\r";
+    cout << "(" + to_string(current) + "/" + to_string(total) + ")" + "\r";
     cout.flush();
 }
-
-
-
 
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
     ((string*)userp)->append((char*)contents, size * nmemb);
     return size * nmemb;
 }
-
-
 
 string ExtractDomainRoot(const string fullUrl) {
     if (fullUrl.empty()) return "";
@@ -669,7 +526,7 @@ void RefreshRobotsCache(const string& domainRootUrl, RobotsCacheEntry& cacheEntr
 
     if (res != CURLE_OK || httpCode >= 400) {
         cacheEntry.exists = false;
-        cerr << "Robots.txt fetch failed or 40x for [" << domainRootUrl << "]. Status Code: " << httpCode << endl;
+        cerr << "Robots.txt fetch failed or 40x for [" + domainRootUrl + "]. Status Code: " + to_string(httpCode) + "\n";
         return;
     }
 
@@ -713,7 +570,7 @@ bool IsAllowedByRobotsGeneral(const string& fullUrl) {
         lock_guard<mutex> mapLock(globalRobotsCacheMapMutex);
 
         if (robotsCacheMap.size() >= MAX_ROBOTS_CACHE_SIZE) {
-            cout << "Robots cache size (" << robotsCacheMap.size() << ") exceeded limit (" << MAX_ROBOTS_CACHE_SIZE << "). Clearing all cache entries.\n";
+            cout << "Robots cache size (" + to_string(robotsCacheMap.size()) + ") exceeded limit (" + to_string(MAX_ROBOTS_CACHE_SIZE) + "). Clearing all cache entries.\n";
             robotsCacheMap.clear();
         }
 
@@ -807,7 +664,7 @@ bool CheckLinkNotVisited(CURL* curl, const string link) {
     curl_slist_free_all(headers);
 
     if (res != CURLE_OK) {
-        cerr << "KV GET failed for [" << link << "]: " << curl_easy_strerror(res) << endl;
+        cerr << "KV GET failed for [" + link + "]: " + curl_easy_strerror(res) + "\n";
         return false;
     }
 
@@ -827,7 +684,7 @@ bool RegisterLink(CURL* curl, const string link) {
     curl_slist_free_all(headers);
 
     if (res != CURLE_OK) {
-        cerr << "KV POST failed for [" << link << "]: " << curl_easy_strerror(res) << endl;
+        cerr << "KV POST failed for [" + link + "]: " + curl_easy_strerror(res) + "\n";
         return false;
     }
 
@@ -841,7 +698,7 @@ vector<bool> RegisterLinks(CURL* curl, vector<string> links) {
 
     CURLM * multi_handle = curl_multi_init();
     if (!multi_handle) {
-        cerr << "Failed to initialize CURL multi handle." << endl;
+        cerr << "Failed to initialize CURL multi handle.\n";
         return checker;
     }
 
@@ -851,7 +708,7 @@ vector<bool> RegisterLinks(CURL* curl, vector<string> links) {
         string link = links[i];
         CURL* eh = curl_easy_init();
         if (!eh) {
-            cerr << "Failed to initialize CURL easy handle." << endl;
+            cerr << "Failed to initialize CURL easy handle.\n";
             continue;
         }
 
@@ -891,11 +748,11 @@ vector<bool> RegisterLinks(CURL* curl, vector<string> links) {
             curl_easy_getinfo(eh, CURLINFO_RESPONSE_CODE, &response_code);
 
             if (msg->data.result == CURLE_OK && response_code == 201) {
-                cout << "KV POST success for [" << data->link << "] (Code: " << response_code << ").\n";
+                cout << "KV POST success for [" + data->link + "] (Code: " + to_string(response_code) + ").\n";
                 checker[data->index] = true;
             }
             else {
-                cerr << "KV POST FAILED for [" << data->link << "] (Code: " << response_code << "). Error: " << curl_easy_strerror(msg->data.result) << endl;
+                cerr << "KV POST FAILED for [" + data->link + "] (Code: " + to_string(response_code) + "). Error: " + curl_easy_strerror(msg->data.result) + "\n";
             }
 
             curl_multi_remove_handle(multi_handle, eh);
@@ -926,9 +783,9 @@ void PostHTMLContent(map<string, string>&& bodies) {
             string link = entry.first;
             string body = entry.second;
 
-            content.append("\"" + link + "\": " + body);
+            content.append("\"" + link + "\":" + body);
             if (++bodiesSearchCnt != bodies.size()) {
-                content.append(", ");
+                content.append(",");
             }
         }
 
@@ -952,14 +809,11 @@ void PostHTMLContent(map<string, string>&& bodies) {
         CURLcode response_code = curl_easy_perform(curl);
         curl_slist_free_all(headers);
         if (response_code == CURLE_OK) {
-            cout << "HTML POST success.\n";
+            cout << to_string(bodies.size()) + " HTML Posting in " + GetTakenTime(start) + "\n";
         }
         else {
             cerr << "HTML POST FAILED.\n";
         }
-
-        string log = to_string(bodies.size()) + " HTML Posting in " + GetTakenTime(start) + "\n";
-        cout << log;
     }
 }
 
@@ -985,7 +839,7 @@ bool DeleteFromStorage(CURL* curl, const string link, const string storage) { //
     curl_slist_free_all(headers);
 
     if (res != CURLE_OK) {
-        cerr << "DELETE failed for [" << link << "]: " << curl_easy_strerror(res) << endl;
+        cerr << "DELETE failed for [" + link + "]: " + curl_easy_strerror(res) + "\n";
         return false;
     }
 

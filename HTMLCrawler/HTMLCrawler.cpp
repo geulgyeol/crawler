@@ -5,7 +5,6 @@
 #endif
 
 using namespace std;
-namespace pubsub = ::google::cloud::pubsub;
 
 const int CRAWL_PER_SECOND_N = CRAWL_PER_SECOND_MAP.at("HTMLCrawler_N");
 const int CRAWL_PER_SECOND_T = CRAWL_PER_SECOND_MAP.at("HTMLCrawler_T");
@@ -14,17 +13,8 @@ const int DELAY_MILLI_T = 1000 / CRAWL_PER_SECOND_T;
 std::chrono::nanoseconds DELAY_NANOS_N = std::chrono::nanoseconds(1'000'000'000LL / CRAWL_PER_SECOND_N);
 std::chrono::nanoseconds DELAY_NANOS_T = std::chrono::nanoseconds(1'000'000'000LL / CRAWL_PER_SECOND_T);
 
-unique_ptr<pubsub::Publisher> blogProfilePublisher;
-unique_ptr<pubsub::Publisher> blogWritingPublisher;
-
-unique_ptr<pubsub::Subscriber> blogProfileSubscriber;
-unique_ptr<pubsub::Subscriber> blogWritingLinkForProfileSubscriber;
-unique_ptr<pubsub::Subscriber> blogWritingLinkForContentSubscriber;
-
 queue<Message> messageQueue;
 queue<int> deleteIdsQueue;
-bool subscribeEnabled = false;
-
 
 map<CURL*, struct curl_slist*> headersMap;
 
@@ -42,7 +32,7 @@ CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& 
 
     CURL* eh = curl_easy_init();
     if (!eh) {
-        cerr << "Failed to initialize CURL easy handle." << endl;
+        cerr << "Failed to initialize CURL easy handle.\n";
         return nullptr;
     }
 
@@ -65,7 +55,7 @@ CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& 
     }
 
     if (!IsAllowedByRobotsGeneral(url)) {
-        cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\\n";
+        cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << url << "]\n";
         delete readBuffer;
         curl_easy_cleanup(eh);
         return nullptr;
@@ -81,8 +71,7 @@ CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& 
     buffers[eh] = readBuffer;
     link_data[eh] = link;
 
-    string log = "Handle Created in " + GetTakenTime(start) + "\n";
-    cout << log;
+    cout << "Handle Created in " + GetTakenTime(start) + "\n";
 
     return eh;
 }
@@ -91,13 +80,6 @@ CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& 
 int main() {
     cin.tie(NULL);
     ios::sync_with_stdio(false);
-
-    blogProfilePublisher = make_unique<pubsub::Publisher>(pubsub::Publisher(pubsub::MakePublisherConnection(pubsub::Topic(PROJECT_ID, PROFILE_TOPIC_ID), google::cloud::Options{}.set<pubsub::MessageOrderingOption>(true))));
-    blogWritingPublisher = make_unique<pubsub::Publisher>(pubsub::Publisher(pubsub::MakePublisherConnection(pubsub::Topic(PROJECT_ID, WRITING_TOPIC_ID), google::cloud::Options{}.set<pubsub::MessageOrderingOption>(true))));
-
-    blogProfileSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, PROFILE_SUB_ID))));
-    blogWritingLinkForProfileSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_PROFILE_SUB_ID))));
-    blogWritingLinkForContentSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_CONTENT_SUB_ID))));
 
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
@@ -111,13 +93,13 @@ int main() {
     CURLM* multi_handle = curl_multi_init();
 
     if (!multi_handle) {
-        cerr << "Failed to initialize CURL multi handle." << endl;
+        cerr << "Failed to initialize CURL multi handle.\n";
         if (curl) curl_easy_cleanup(curl);
         curl_global_cleanup();
         return 0;
     }
     if (!curl) {
-        cerr << "Failed to initialize CURL easy handle for sync tasks." << endl;
+        cerr << "Failed to initialize CURL easy handle for sync tasks.\n";
         curl_multi_cleanup(multi_handle);
         curl_global_cleanup();
         return 0;
@@ -158,7 +140,7 @@ int main() {
                     }
                 }
                 if (!has) {
-                    cout << "Queue is empty" << endl;
+                    cout << "Queue is empty\n";
                     break;
                 }
 
@@ -213,13 +195,11 @@ int main() {
                 bool isSuccess = false;
 
                 if (msg->data.result == CURLE_OK && response_code < 400) {
-                    string log = "success: " + to_string(++cnt) + " " + GetTakenTime(start_) + " Taken: " + to_string(total_time) + "s for [" + link + "]\n";
-                    cout << log;
+                    cout << "success: " + to_string(++cnt) + " " + GetTakenTime(start_) + " Taken: " + to_string(total_time) + "s for [" + link + "]\n";
                     isSuccess = true;
                 }
                 else {
-                    string log = "FAILED for [" + link + "] (Code: " + to_string(response_code) + "). Error: " + curl_easy_strerror(msg->data.result) + " " + GetTakenTime(start_) + " Taken: " + to_string(total_time) + "s\n";
-                    cerr << log;
+                    cerr << "FAILED for [" + link + "] (Code: " + to_string(response_code) + "). Error: " + curl_easy_strerror(msg->data.result) + " " + GetTakenTime(start_) + " Taken: " + to_string(total_time) + "s\n";
 
                     if (msg->data.result == 28) {
                         vector<CURL*> failedHandles;
@@ -262,7 +242,7 @@ int main() {
                     PostQueue("content", v);
                 }
 
-                if (ENABLE_DB_UPLOAD && isSuccess) {
+                if (isSuccess) {
                     string Body;
                     Body.append("{\"body\":\"" + EscapeQuotes(*buffer) + "\",\"blog\":\"");
                     if (!link.empty() && link[0] == 'N') {
@@ -301,8 +281,7 @@ int main() {
 
         if (bodies.empty() || bodies.size() < BODIES_THRESHOLD) continue;
 
-        string log = to_string(bodies.size()) + " HTML Crawled in " + GetTakenTime(start) + "\n";
-        cout << log;
+        cout << to_string(bodies.size()) + " HTML Crawled in " + GetTakenTime(start) + "\n";
         start = std::chrono::steady_clock::now();
         thread postHTMLContentThread(PostHTMLContent, std::move(bodies));
         postHTMLContentThread.detach();
