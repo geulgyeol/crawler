@@ -5,15 +5,10 @@
 #endif
 
 using namespace std;
-namespace pubsub = ::google::cloud::pubsub;
-
-unique_ptr<pubsub::Publisher> blogProfilePublisher;
 
 int main() {
     cin.tie(NULL);
     ios::sync_with_stdio(false);
-
-    blogProfilePublisher = make_unique<pubsub::Publisher>(pubsub::Publisher(pubsub::MakePublisherConnection(pubsub::Topic(PROJECT_ID, PROFILE_TOPIC_ID), google::cloud::Options{}.set<pubsub::MessageOrderingOption>(true))));
 
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
@@ -25,11 +20,12 @@ int main() {
     CURL* curl;
     curl = curl_easy_init();
 
-    cout << "Input Profile to Publish\n\n";
-    cout << "Profile Format : [N or T][Profile Name]\n\n";
-    cout << "ex)   Nhello\n";
-    cout << "ex)   TWorld\n";
-    cout << "ex)   NAbCd T1234_ff TAAA123__bcd\n\n\n\n";
+    cout << "Input Queue Name and Payloads to Publish\n\n";
+    cout << "Queue Names: user, profile, content\n";
+    cout << "Format : [Queue Name] [N or T][Profile Name(/Number)] ...\n\n";
+    cout << "ex)   user Nhello\n";
+    cout << "ex)   profile TWorld/1233\n";
+    cout << "ex)   content NAbCd/1 T1234_ff/33 TAAA123__bcd/612344122\n\n\n\n";
 
     while (true) {
         string p;
@@ -48,8 +44,21 @@ int main() {
             profiles.push_back(p);
         }
 
+        string queueName = profiles[0];
+        profiles.erase(profiles.begin() + 0);
+
         vector<pair<int, string>> failed;
         vector<bool> registerChecker(profiles.size(), false);
+
+        if (queueName != "user" && queueName != "profile" && queueName != "content") {
+            cout << "Queue name must be one of user, profile, content.\n";
+            continue;
+        }
+
+        if (profiles.empty()) {
+            cout << "No Payloads\n";
+            continue;
+        }
 
         for (int i = 0; i < profiles.size(); i++) {
             string profile = profiles[i];
@@ -68,7 +77,7 @@ int main() {
             }
         }
 
-        Publish(*blogProfilePublisher, profiles, registerChecker);
+        PostQueue(queueName, profiles, registerChecker);
 
         cout << "\n";
 

@@ -10,15 +10,6 @@ class Config {
 public:
 	Config();
 
-	const string PROJECT_ID;							// GCP Project ID
-
-	const string PROFILE_TOPIC_ID;						// Profile Topic ID
-	const string WRITING_TOPIC_ID;						// Writing Topic ID
-
-	const string PROFILE_SUB_ID;						// Profile Subscription ID (Profile Topic)
-	const string WRITING_FOR_PROFILE_SUB_ID;			// Writing For Profile Subscription ID (Writing Topic)
-	const string WRITING_FOR_CONTENT_SUB_ID;			// Writing For Content Subscription ID (Writing Topic)
-
 	const string CRAWLER_NAME;							// Crawler Name
 
 	const string USER_AGENT;							// User Agent
@@ -27,13 +18,13 @@ public:
 	const string HTML_STORAGE_ENDPOINT;					// html-storage
 	const string QUEUE_ENDPOINT;						// queue
 
-	const int MAX_CONCURRENT_REQUESTS;					// Max Concurrent Requests Count (**NOT RECOMMEND** change Default: 10)
+	const int MAX_CONCURRENT_REQUESTS;					// Max Concurrent Requests Count (Keep the default value in most cases: 10)
 	
 	const int BODIES_THRESHOLD;							// Threshold to Upload on html-storage
 
-	const int DEFAULT_SUB_WAITING_TIME;					// Default Subscription Waiting Time
-
 	const int NAVER_TIMEOUT_WAITING_TIME;				// Waiting Time When Naver Blog Timeouted
+
+	const int QUEUE_TIME_LIMIT;							// rnlcksgdk wntjr dksekfdk
 
 	const long CONNECTION_TIMEOUT_SECONDS;				// Connection Timeout Seconds
 	const long RESPONSE_TIMEOUT_SECONDS;				// Response Timeout Seconds
@@ -44,7 +35,6 @@ public:
 	const long long ROBOTS_CACHE_DURATION_SECONDS;		// robots.txt Cache Refresh Duration
 	const size_t MAX_ROBOTS_CACHE_SIZE;					// robots.txt Cache Max Count Limit (If exceeded limit, clear all cathy)
 
-	const bool ENABLE_DB_UPLOAD;						// enable request to cluster
 	const bool VERBOSE;									// enable debug output
 
 	map<const string, const int> CRAWL_PER_SECOND_MAP;	// Crawl Per Second (**DONT** change string, 10 = crawl per 0.1s)

@@ -5,12 +5,9 @@
 #endif
 
 using namespace std;
-namespace pubsub = ::google::cloud::pubsub;
 namespace fs = filesystem;
 
-unique_ptr<pubsub::Publisher> blogWritingPublisher;
-
-string path = "C:\\Users\\k5517\\Downloads\\html-storage-main\\html-storage-main\\data\\2025\\12\\15";
+string path = "C:\\Users\\k5517\\Downloads\\html-storage-main\\html-storage-main\\data\\2026\\03\\05";
 int maxWritingsSize = 1000;
 CURL* curl;
 vector<string> blogWritings;
@@ -26,7 +23,7 @@ void RePublish() {
         blogWritingsForRegister.push_back("ReSubscriber_" + message_t);
     }
     vector<bool> checker = RegisterLinks(curl, blogWritingsForRegister);
-    Publish(*blogWritingPublisher, blogWritings, checker);
+    PostQueue("content", blogWritings, checker);
 
     for (int i = 0; i < checker.size(); i++) {
         if (checker[i]) {
@@ -63,8 +60,6 @@ void RePublish() {
 int main() {
     cin.tie(NULL);
     ios::sync_with_stdio(false);
-
-    blogWritingPublisher = make_unique<pubsub::Publisher>(pubsub::Publisher(pubsub::MakePublisherConnection(pubsub::Topic(PROJECT_ID, WRITING_TOPIC_ID), google::cloud::Options{}.set<pubsub::MessageOrderingOption>(true))));
 
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);

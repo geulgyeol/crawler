@@ -5,24 +5,14 @@
 #endif
 
 using namespace std;
-namespace pubsub = ::google::cloud::pubsub;
 
 const int CRAWL_PER_SECOND_N = CRAWL_PER_SECOND_MAP.at("LinkFinder_N");
 const int CRAWL_PER_SECOND_T = CRAWL_PER_SECOND_MAP.at("LinkFinder_T");
 const int DELAY_MILLI_N = 1000 / CRAWL_PER_SECOND_N;
 const int DELAY_MILLI_T = 1000 / CRAWL_PER_SECOND_T;
 
-unique_ptr<pubsub::Publisher> blogProfilePublisher;
-unique_ptr<pubsub::Publisher> blogWritingPublisher;
-
-unique_ptr<pubsub::Subscriber> blogProfileSubscriber;
-unique_ptr<pubsub::Subscriber> blogWritingLinkForProfileSubscriber;
-unique_ptr<pubsub::Subscriber> blogWritingLinkForContentSubscriber;
-
-
 queue<Message> messageQueue;
 queue<int> deleteQueue;
-bool subscribeEnabled = false;
 
 struct TistoryRequestData {
     string* buffer;
@@ -34,17 +24,7 @@ int main() {
     cin.tie(NULL);
     ios::sync_with_stdio(false);
 
-    blogProfilePublisher = make_unique<pubsub::Publisher>(pubsub::Publisher(pubsub::MakePublisherConnection(pubsub::Topic(PROJECT_ID, PROFILE_TOPIC_ID))));
-    blogWritingPublisher = make_unique<pubsub::Publisher>(pubsub::Publisher(pubsub::MakePublisherConnection(pubsub::Topic(PROJECT_ID, WRITING_TOPIC_ID))));
-
-    blogProfileSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, PROFILE_SUB_ID))));
-    blogWritingLinkForProfileSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_PROFILE_SUB_ID))));
-    blogWritingLinkForContentSubscriber = make_unique<pubsub::Subscriber>(pubsub::Subscriber(pubsub::MakeSubscriberConnection(pubsub::Subscription(PROJECT_ID, WRITING_FOR_CONTENT_SUB_ID))));
-
-    //Publish(*blogProfilePublisher, { "Nhaesung_88" });
-    //Publish(*blogProfilePublisher, { "Tnelastory" });
-    //Publish(*blogProfilePublisher, { "N1_do_everything" });
-    //Publish(*blogProfilePublisher, { "Tmungdenson" });
+    //Nhaesung_88 Tnelastory N1_do_everything Tmungdenson
 
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
@@ -79,7 +59,7 @@ int main() {
         }
 
         string link = message.message;
-        if (message.isLocked()) {
+        if (message.isLocked() || link.empty()) {
             continue;
         }
 
@@ -89,22 +69,17 @@ int main() {
         }
 
         vector<string*> buffers;
-
         string readBuffer;
         
         curl = curl_easy_init();
         if (curl) {
-            if (link == "") {
-                break;
-            }
-
             string link_t = link;
             size_t pos = link_t.find('/');
             if (pos != string::npos) {
                 link_t.replace(pos, 1, "%20");
             }
 
-            if (ENABLE_DB_UPLOAD && !CheckLinkNotVisited(curl, "LinkFinder_" + link_t)) continue;
+            if (!CheckLinkNotVisited(curl, "LinkFinder_" + link_t)) continue;
 
             if (link[0] == 'N') {
                 string blogName = link.substr(1);
@@ -122,8 +97,7 @@ int main() {
                     string referer = "Referer: https://blog.naver.com/" + blogName;
 
                     if (!IsAllowedByRobotsGeneral(url)) {
-                        string log = "SKIP: Robots.txt denied access for [" + link + "] URL [" + url + "]\\n";
-                        cout << log;
+                        cout << "SKIP: Robots.txt denied access for [" + link + "] URL [" + url + "]\n";
                         break;
                     }
 
@@ -133,7 +107,7 @@ int main() {
                     CURLcode res = curl_easy_perform(curl);
                     curl_slist_free_all(headers);
                     if (res != CURLE_OK) {
-                        cerr << "curl_easy_perform() failed on page " << currentPage << ": " << curl_easy_strerror(res) << endl;
+                        cerr << "curl_easy_perform() failed on page " + to_string(currentPage) + ": " + curl_easy_strerror(res) + "\n";
                         break;
                     }
 
@@ -171,8 +145,7 @@ int main() {
                         pagesFoundInThisCall++;
                     }
 
-                    string log = "Current Collect : " + to_string(collectCnt) + " (Page: " + to_string(currentPage) + ") " + GetTakenTime(start) + "\n";
-                    cout << log;
+                    cout << "Current Collect : " + to_string(collectCnt) + " (Page: " + to_string(currentPage) + ") " + GetTakenTime(start) + "\n";
 
                     if (duplicateFound || pagesFoundInThisCall == 0) {
                         break;
@@ -184,7 +157,7 @@ int main() {
 
                 cout << "\n";
 
-                if (!ENABLE_DB_UPLOAD || RegisterLink(curl, "LinkFinder_" + link_t)) {
+                if (RegisterLink(curl, "LinkFinder_" + link_t)) {
                     PostQueue("profile", validPages);
                     PostQueue("content", validPages);
                 }
@@ -196,8 +169,7 @@ int main() {
                 string url = "https://" + link.substr(1) + ".tistory.com/rss";
 
                 if (!IsAllowedByRobotsGeneral(url)) {
-                    string log = "SKIP: Robots.txt denied access for [" + link + "] URL [" + url + "]\\n";
-                    cout << log;
+                    cout << "SKIP: Robots.txt denied access for [" + link + "] URL [" + url + "]\n";
                     Delay(DELAY_MILLI_T, "main");
                     curl_easy_cleanup(curl);
                     continue;
@@ -210,7 +182,8 @@ int main() {
                 curl_slist_free_all(headers);
 
                 if (res != CURLE_OK) {
-                    cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << endl;
+                    string str_t(curl_easy_strerror(res));
+                    cerr << "curl_easy_perform() failed: " + str_t + "\n";
                     curl_easy_cleanup(curl);
                     continue;
                 }
@@ -224,13 +197,14 @@ int main() {
                         maxIndex = stoi(match[1].str());
                     }
                     catch (exception& e) {
-                        cerr << "Failed to parse max post ID from RSS: " << e.what() << endl;
+                        string str_t(e.what());
+                        cerr << "Failed to parse max post ID from RSS: " + str_t + "\n";
                         continue;
                     }
                 }
 
                 if (maxIndex == 0) {
-                    cout << "No post IDs found for [" << link << "]. " + GetTakenTime(start) + "\n";
+                    cout << "No post IDs found for [" + link + "]. " + GetTakenTime(start) + "\n";
                     curl_easy_cleanup(curl);
                     Delay(DELAY_MILLI_T, "main");
                     continue;
@@ -238,7 +212,7 @@ int main() {
 
                 CURLM* multi_handle = curl_multi_init();
                 if (!multi_handle) {
-                    cerr << "Failed to initialize CURL multi handle" << endl;
+                    cerr << "Failed to initialize CURL multi handle\n";
                     curl_easy_cleanup(curl);
                     continue;
                 }
@@ -250,8 +224,7 @@ int main() {
                 int currentIndex = maxIndex;
                 int completed = 0;
 
-                string log = "Requests (total max: " + to_string(maxIndex) + ") " + GetTakenTime(start) + "\n";
-                cout << log;
+                cout << "Requests (total max: " + to_string(maxIndex) + ") " + GetTakenTime(start) + "\n";;
 
                 start = std::chrono::steady_clock::now();
 
@@ -259,7 +232,7 @@ int main() {
                     if (currentIndex > 0 && requests.size() < MAX_CONCURRENT_REQUESTS) {
                         CURL* eh = curl_easy_init();
                         if (!eh) {
-                            cerr << "Failed to initialize easy handle for index " << currentIndex << endl;
+                            cerr << "Failed to initialize easy handle for index " + to_string(currentIndex) + "\n";
                             currentIndex--;
                             continue;
                         }
@@ -281,7 +254,7 @@ int main() {
                             Delay(DELAY_MILLI_T, "main");
                         }
                         else {
-                            cout << "SKIP: Robots.txt denied access for [" << link << "] URL [" << request_url << "]\\n";
+                            cout << "SKIP: Robots.txt denied access for [" + link + "] URL [" + request_url + "]\n";
                             delete data->buffer;
                             curl_easy_cleanup(eh);
                         }
@@ -346,11 +319,10 @@ int main() {
                     }
                 }
 
-                log = "\n# Valid Page Count : " + to_string(validPages.size()) + ", " + GetTakenTime(start) + "\n";
-                cout << log;
+                cout << "\n# Valid Page Count : " + to_string(validPages.size()) + ", " + GetTakenTime(start) + "\n";
                 curl_multi_cleanup(multi_handle);
 
-                if (!ENABLE_DB_UPLOAD || RegisterLink(curl, "LinkFinder_" + link_t)) {
+                if (RegisterLink(curl, "LinkFinder_" + link_t)) {
                     PostQueue("profile", validPages);
                     PostQueue("content", validPages);
                 }
