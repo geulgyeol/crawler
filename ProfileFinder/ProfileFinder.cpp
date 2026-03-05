@@ -59,7 +59,7 @@ int main() {
         }
 
         string link = message.message;
-        if (message.isLocked()) {
+        if (message.isLocked() || link.empty()) {
             continue;
         }
 
@@ -72,10 +72,6 @@ int main() {
 
         curl = curl_easy_init();
         if (curl) {
-            if (link == "") {
-                break;
-            }
-
             int slashIndex = link.find('/');
             string profileName = link.substr(1, slashIndex - 1);
             string writingNumber = link.substr(slashIndex + 1);

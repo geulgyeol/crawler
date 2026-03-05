@@ -59,7 +59,7 @@ int main() {
         }
 
         string link = message.message;
-        if (message.isLocked()) {
+        if (message.isLocked() || link.empty()) {
             continue;
         }
 
@@ -69,15 +69,10 @@ int main() {
         }
 
         vector<string*> buffers;
-
         string readBuffer;
         
         curl = curl_easy_init();
         if (curl) {
-            if (link == "") {
-                break;
-            }
-
             string link_t = link;
             size_t pos = link_t.find('/');
             if (pos != string::npos) {
