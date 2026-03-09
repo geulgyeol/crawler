@@ -68,11 +68,11 @@ int main() {
                 continue;
             }
 
-            if (CheckLinkNotVisited(curl, profile)) {
-                registerChecker[i] = RegisterLink(curl, profile);
+            if (CheckLinkNotVisited(curl, profile, (queueName == "user" ? "users" : "posts"))) {
+                registerChecker[i] = true;
             }
             else {
-                failed.push_back({ i, "Failed to Upload link-kv(Already exist or Failed Connect)" });
+                failed.push_back({ i, "Failed to Upload (Already exist or Failed Connect)" });
                 continue;
             }
         }
