@@ -26,7 +26,7 @@ CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& 
     if (pos == string::npos) {
         return nullptr;
     }
-    if (!CheckLinkNotVisited(curl, "Crawler_" + link_t.replace(pos, 1, "%20"))) return nullptr;
+    if (!CheckLinkNotVisited(curl, link_t.replace(pos, 1, "%20"), "posts")) return nullptr;
 
     auto start = std::chrono::steady_clock::now();
 
@@ -259,7 +259,7 @@ int main() {
                         db_link.replace(pos, 1, "%20");
                         string html_storage_link = link;
                         html_storage_link.replace(pos, 1, " ");
-                        if (RegisterLink(curl, "Crawler_" + db_link)) {
+                        if (CheckLinkNotVisited(curl, db_link, "posts")) {
                             bodies.insert({ html_storage_link.substr(1), Body });
                         }
                     }

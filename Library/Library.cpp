@@ -653,8 +653,21 @@ string EscapeQuotes(const string& input) {
 
 
 
-bool CheckLinkNotVisited(CURL* curl, const string link) {
-    string url = config.LINK_KV_ENDPOINT + "/" + link;
+bool CheckLinkNotVisited(CURL* curl, const string link, const string type) {
+    string platform = "";
+
+    if (link[0] == 'N') {
+        platform = "naverblog";
+    }
+    else if (link[0] == 'T') {
+        platform = "tistory";
+    }
+    else {
+        cout << "link must start with N or T in CheckLinkNotVisited\n";
+        return false;
+    }
+
+    string url = config.LINK_KV_ENDPOINT + "/" + type + "/" + platform + "/" + link.substr(1);
     string readBuffer;
     struct curl_slist* headers = SetCURL(curl, &readBuffer, url);
     long httpCode = 0;
@@ -671,12 +684,36 @@ bool CheckLinkNotVisited(CURL* curl, const string link) {
     return httpCode == 404;
 }
 
-bool RegisterLink(CURL* curl, const string link) {
-    string url = config.LINK_KV_ENDPOINT + "/" + link;
+bool RegisterLink(CURL* curl, const string link, const string type) {
+    string platform = "";
 
+    if (link[0] == 'N') {
+        platform = "naverblog";
+    }
+    else if (link[0] == 'T') {
+        platform = "tistory";
+    }
+    else {
+        cout << "link must start with N or T in CheckLinkNotVisited\n";
+        return false;
+    }
+
+    string content = "{\"blog_platform\":\"" + platform + "\",\"user_id\":\"" + link.substr(1) + "\"}";
+    
+    string url = config.LINK_KV_ENDPOINT + "/" + type;
     string readBuffer;
 
-    struct curl_slist* headers = SetCURL(curl, &readBuffer, url, "", "", "POST");
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, content.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, content.length());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+
+    struct curl_slist* headers = NULL;
+    headers = curl_slist_append(headers, config.USER_AGENT.c_str());
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
     long httpCode = 0;
     CURLcode res = curl_easy_perform(curl);
@@ -691,7 +728,7 @@ bool RegisterLink(CURL* curl, const string link) {
     return httpCode == 201;
 }
 
-vector<bool> RegisterLinks(CURL* curl, vector<string> links) {
+vector<bool> RegisterLinks(CURL* curl, vector<string> links, const string type) {
     if (links.empty()) return {};
 
     vector<bool> checker(links.size(), false);
@@ -716,9 +753,36 @@ vector<bool> RegisterLinks(CURL* curl, vector<string> links) {
         data->link = link;
         data->index = i;
 
-        string url = config.LINK_KV_ENDPOINT + "/" + data->link;
+        string platform = "";
 
-        struct curl_slist* headers = SetCURL(eh, &data->readBuffer, url, "", "", "POST");
+        if (link[0] == 'N') {
+            platform = "naverblog";
+        }
+        else if (link[0] == 'T') {
+            platform = "tistory";
+        }
+        else {
+            cout << "link must start with N or T in CheckLinkNotVisited\n";
+            return {NULL};
+        }
+
+        string content = "{\"blog_platform\":\"" + platform + "\",\"user_id\":\"" + link.substr(1) + "\"}";
+
+        string url = config.LINK_KV_ENDPOINT + "/" + type;
+        string readBuffer;
+
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, content.c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, content.length());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+
+        struct curl_slist* headers = NULL;
+        headers = curl_slist_append(headers, config.USER_AGENT.c_str());
+        headers = curl_slist_append(headers, "Content-Type: application/json");
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
         data->headers = headers;
 
         curl_multi_add_handle(multi_handle, eh);

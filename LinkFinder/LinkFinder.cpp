@@ -79,8 +79,6 @@ int main() {
                 link_t.replace(pos, 1, "%20");
             }
 
-            if (!CheckLinkNotVisited(curl, "LinkFinder_" + link_t)) continue;
-
             if (link[0] == 'N') {
                 string blogName = link.substr(1);
                 vector<string> validPages;
@@ -157,10 +155,8 @@ int main() {
 
                 cout << "\n";
 
-                if (RegisterLink(curl, "LinkFinder_" + link_t)) {
-                    PostQueue("profile", validPages);
-                    PostQueue("content", validPages);
-                }
+                PostQueue("profile", validPages);
+                PostQueue("content", validPages);
 
                 Delay(DELAY_MILLI_N, "main");
             }
@@ -322,10 +318,8 @@ int main() {
                 cout << "\n# Valid Page Count : " + to_string(validPages.size()) + ", " + GetTakenTime(start) + "\n";
                 curl_multi_cleanup(multi_handle);
 
-                if (RegisterLink(curl, "LinkFinder_" + link_t)) {
-                    PostQueue("profile", validPages);
-                    PostQueue("content", validPages);
-                }
+                PostQueue("profile", validPages);
+                PostQueue("content", validPages);
 
                 Delay(DELAY_MILLI_T, "main");
             }
