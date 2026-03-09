@@ -107,7 +107,7 @@ int main() {
                 cout << "Collect Sympathy Blogger Ids\n";
                 for (auto j = begin; j != end; ++j) {
                     string id = "N" + (*j)[1].str();
-                    if (CheckLinkNotVisited(curl, id)) {
+                    if (CheckLinkNotVisited(curl, id, "users")) {
                         blogIds.push_back(id);
                         cout << "Current Collect : " + to_string(++collectCnt) + "\r";
                     }
@@ -122,7 +122,7 @@ int main() {
                 vector<bool> registerChecker(blogIds.size(), true);
 
                 for (int i = 0; i < blogIds.size(); i++) {
-                    registerChecker[i] = RegisterLink(curl, blogIds[i]);
+                    registerChecker[i] = RegisterLink(curl, blogIds[i], "users");
                 }
 
                 PostQueue("user", blogIds, registerChecker);
@@ -165,7 +165,7 @@ int main() {
                     smatch matchId;
                     if (regex_search(full, matchId, commentBlogHomepageRegex)) {
                         string id = "T" + matchId[1].str();
-                        if (CheckLinkNotVisited(curl, id)) {
+                        if (CheckLinkNotVisited(curl, id, "users")) {
                             blogHomepages.push_back(id);
                             cout << "Current Collect : " + to_string(++collectCnt) + "\r";
                         }
@@ -181,7 +181,7 @@ int main() {
                 vector<bool> registerChecker(blogHomepages.size(), true);
 
                 for (int i = 0; i < blogHomepages.size(); i++) {
-                    registerChecker[i] = RegisterLink(curl, blogHomepages[i]);
+                    registerChecker[i] = RegisterLink(curl, blogHomepages[i], "users");
                 }
 
                 PostQueue("user", blogHomepages, registerChecker);
