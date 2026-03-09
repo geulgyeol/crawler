@@ -1,4 +1,30 @@
-/*#include "../Library/Library.cpp"
+#include "../Library/Library.cpp"
+
+
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+//쓰지마셈
+
+
 
 #ifdef _WIN32
 #include <windows.h>
@@ -22,7 +48,7 @@ void RePublish() {
         }
         blogWritingsForRegister.push_back("ReSubscriber_" + message_t);
     }
-    vector<bool> checker = RegisterLinks(curl, blogWritingsForRegister);
+    /*vector<bool> checker = RegisterLinks(curl, blogWritingsForRegister);
     PostQueue("content", blogWritings, checker);
 
     for (int i = 0; i < checker.size(); i++) {
@@ -34,9 +60,9 @@ void RePublish() {
             }
             DeleteFromStorage(curl, "Crawler_" + message_t, "kv");
         }
-    }
+    }*/
 
-    vector<string> retry;
+    /*vector<string> retry;
     for (int i = 0; i < checker.size(); i++) {
         string message_t = blogWritings[i];
         size_t pos = message_t.find('/');
@@ -54,7 +80,7 @@ void RePublish() {
         for (int i = 0; i < retry.size(); i++) {
             blogWritings.push_back(retry[i]);
         }
-    }
+    }*/
 }
 
 int main() {
@@ -103,7 +129,7 @@ int main() {
                 message_t.replace(pos, 1, "%20");
             }
 
-            if (!CheckLinkNotVisited(curl, "ReSubscriber_" + message_t)) continue;
+            //if (!CheckLinkNotVisited(curl, "ReSubscriber_" + message_t)) continue;
 
             blogWritings.push_back(message);
 
@@ -128,4 +154,4 @@ int main() {
     curl_global_cleanup();
 
     return 0;
-}*/
+}
