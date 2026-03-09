@@ -4,7 +4,7 @@
 #include <windows.h>
 #endif
 
-using namespace std;
+using namespace std;//
 
 int main() {
     cin.tie(NULL);
