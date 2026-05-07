@@ -9,12 +9,19 @@ add_library(
     "config.cpp"
 )
 
-find_package(google_cloud_cpp_pubsub REQUIRED)
-find_package(CURL REQUIRED)
-
-target_link_libraries(Library PUBLIC
-    google-cloud-cpp::pubsub
-    CURL::libcurl
+target_include_directories(Library PUBLIC 
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${VCPKG_ROOT}/include"
 )
 
-target_include_directories(Library PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(Library PUBLIC
+    $<$<CONFIG:Debug>:"${VCPKG_ROOT}/debug/lib/pulsar">
+    $<$<CONFIG:Release>:"${VCPKG_ROOT}/lib/pulsar">
+    $<$<CONFIG:Debug>:"${VCPKG_ROOT}/debug/lib/libcurl-d">
+    $<$<CONFIG:Release>:"${VCPKG_ROOT}/lib/libcurl">
+)
+
+set_target_properties(Library PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)

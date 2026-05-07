@@ -15,14 +15,29 @@ int main() {
     SetConsoleCP(CP_UTF8);
 #endif
 
+    Client client(PULSAR_SERVICE_URL, CreateClientConfig());
+
+    Producer userProducer;
+    Result res1 = CreateProducer(client, &userProducer, "user");
+    Producer profileProducer;
+    Result res2 = CreateProducer(client, &profileProducer, "profile");
+    Producer contentProducer;
+    Result res3 = CreateProducer(client, &contentProducer, "content");
+
+    map<string, Producer*> producers;
+    producers.insert({ "user", &userProducer });
+    producers.insert({ "profile", &profileProducer });
+    producers.insert({ "content", &contentProducer });
+
+
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
     CURL* curl;
     curl = curl_easy_init();
 
-    cout << "Input Queue Name and Payloads to Publish\n\n";
-    cout << "Queue Names: user, profile, content\n";
-    cout << "Format : [Queue Name] [N or T][Profile Name(/Number)] ...\n\n";
+    cout << "Input Topic and Messages to Publish\n\n";
+    cout << "Topics: user, profile, content\n";
+    cout << "Format : [Topic] [N or T][Profile Name(/Number)] ...\n\n";
     cout << "ex)   user Nhello\n";
     cout << "ex)   profile TWorld/1233\n";
     cout << "ex)   content NAbCd/1 T1234_ff/33 TAAA123__bcd/612344122\n\n\n\n";
@@ -30,7 +45,7 @@ int main() {
     while (true) {
         string p;
         string line;
-        vector<string> profiles;
+        vector<string> messages;
         
         cout << "Input > ";
 
@@ -41,48 +56,48 @@ int main() {
         stringstream ss(line);
 
         while (ss >> p) {
-            profiles.push_back(p);
+            messages.push_back(p);
         }
 
-        string queueName = profiles[0];
-        profiles.erase(profiles.begin() + 0);
+        string topic = messages[0];
+        messages.erase(messages.begin() + 0);
 
         vector<pair<int, string>> failed;
-        vector<bool> registerChecker(profiles.size(), false);
+        vector<bool> registerChecker(messages.size(), false);
 
-        if (queueName != "user" && queueName != "profile" && queueName != "content") {
-            cout << "Queue name must be one of user, profile, content.\n";
+        if (topic != "user" && topic != "profile" && topic != "content") {
+            cout << "Topic must be one of user, profile, content.\n";
             continue;
         }
 
-        if (profiles.empty()) {
-            cout << "No Payloads\n";
+        if (messages.empty()) {
+            cout << "No Messages\n";
             continue;
         }
 
-        for (int i = 0; i < profiles.size(); i++) {
-            string profile = profiles[i];
+        for (int i = 0; i < messages.size(); i++) {
+            string profile = messages[i];
 
             if (!(profile[0] == 'N' || profile[0] == 'T')) {
                 failed.push_back({i, "First Character is Allowed only N or T"});
                 continue;
             }
 
-            if (CheckLinkNotVisited(curl, profile, (queueName == "user" ? "users" : "posts"))) {
+            if (CheckLinkNotVisited(curl, profile, (topic == "user" ? "users" : "posts"))) {
                 registerChecker[i] = true;
             }
             else {
-                failed.push_back({ i, "Failed to Upload (Already exist or Failed Connect)" });
+                failed.push_back({ i, "Failed to Send (Already exist or Failed Connect)" });
                 continue;
             }
         }
 
-        PostQueue(queueName, profiles, registerChecker);
+        SendMessages(*producers[topic], messages, registerChecker);
 
         cout << "\n";
 
         for (int i = 0; i < failed.size(); i++) {
-            cout << profiles[failed[i].first] << ": " << failed[i].second << "\n";
+            cout << messages[failed[i].first] << ": " << failed[i].second << "\n";
         }
 
         cout << "\n";

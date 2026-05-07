@@ -13,8 +13,7 @@ const int DELAY_MILLI_T = 1000 / CRAWL_PER_SECOND_T;
 std::chrono::nanoseconds DELAY_NANOS_N = std::chrono::nanoseconds(1'000'000'000LL / CRAWL_PER_SECOND_N);
 std::chrono::nanoseconds DELAY_NANOS_T = std::chrono::nanoseconds(1'000'000'000LL / CRAWL_PER_SECOND_T);
 
-queue<Message> messageQueue;
-queue<int> deleteIdsQueue;
+queue<string> messageQueue;
 
 map<CURL*, struct curl_slist*> headersMap;
 
@@ -105,13 +104,21 @@ int main() {
         return 0;
     }
 
+    Client client(PULSAR_SERVICE_URL, CreateClientConfig());
+
+    Producer contentProducer;
+    Result res1 = CreateProducer(client, &contentProducer, "content");
+
+    Consumer consumer;
+    Result res2 = SubscribeConsumer(client, &consumer, "content");
+
+    if (res1 != ResultOk || res2 != ResultOk) return 0;
+
     map<CURL*, string*> buffers;
     map<CURL*, string> link_data;
 
-    thread linkFinderSubscribeThread(GetQueue, "content", &messageQueue);
+    thread linkFinderSubscribeThread(receiveMessages, consumer, &messageQueue);
     linkFinderSubscribeThread.detach();
-    thread linkFinderDeleteThread(DeleteQueue, "content", &deleteIdsQueue);
-    linkFinderDeleteThread.detach();
 
     int links_index = 0;
     int cnt = 0;
@@ -129,7 +136,7 @@ int main() {
             auto now = clock::now();
 
             while ((int)buffers.size() < MAX_CONCURRENT_REQUESTS && now >= nextAdd) {
-                Message message;
+                string message;
                 bool has;
                 {
                     std::lock_guard<std::mutex> lock(messageQueueMutex);
@@ -144,15 +151,11 @@ int main() {
                     break;
                 }
 
-                string link_to_process = message.message;
-                if (message.isLocked()) {
+                if (message.empty()) {
                     continue;
                 }
 
-                {
-                    lock_guard<mutex> lock(deleteQueueMutex);
-                    deleteIdsQueue.push(message.id);
-                }
+                string link_to_process = message;
 
                 auto current_delay = (link_to_process[0] == 'N') ? DELAY_NANOS_N : DELAY_NANOS_T;
 
@@ -232,14 +235,15 @@ int main() {
                             curl_easy_cleanup(failedHandle);
                         }
 
-                        PostQueue("content", failedMessages);
+                        SendMessages(contentProducer, failedMessages);
                         Delay(NAVER_TIMEOUT_WAITING_TIME, "main");
 
                         continue;
                     }
 
                     vector<string> v = { link };
-                    PostQueue("content", v);
+                    SendMessages(contentProducer, v);
+                    Delay(NAVER_TIMEOUT_WAITING_TIME, "main");
                 }
 
                 if (isSuccess) {

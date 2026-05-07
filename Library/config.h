@@ -16,7 +16,9 @@ public:
 
 	const string LINK_KV_ENDPOINT;						// link-kv
 	const string HTML_STORAGE_ENDPOINT;					// html-storage
-	const string QUEUE_ENDPOINT;						// queue
+	const string PULSAR_SERVICE_URL;					// 펄서 서비스 URL
+
+	const string PULSAR_NAMESPACE;						// 
 
 	const int MAX_CONCURRENT_REQUESTS;					// Max Concurrent Requests Count (Keep the default value in most cases: 10)
 	
@@ -24,13 +26,13 @@ public:
 
 	const int NAVER_TIMEOUT_WAITING_TIME;				// Waiting Time When Naver Blog Timeouted
 
-	const int QUEUE_TIME_LIMIT;							// rnlcksgdk wntjr dksekfdk
-
 	const long CONNECTION_TIMEOUT_SECONDS;				// Connection Timeout Seconds
 	const long RESPONSE_TIMEOUT_SECONDS;				// Response Timeout Seconds
 
-	const int ENABLE_MESSAGE_QUEUE_THRESHOLD;			// Threshold to Enable Subscriber
-	const int DISABLE_MESSAGE_QUEUE_THRESHOLD;			// Threshold to Disable Subscriber
+	const int MAX_MESSAGE_QUEUE_SIZE;					// 메세지 큐 최대 크기
+
+	const int MAX_BATCHING_MESSAGE_COUNT;				// 배치 최대 크기
+	const int MAX_BATCHING_DELAY;						// 배치 최대 딜레이 (ms)
 
 	const long long ROBOTS_CACHE_DURATION_SECONDS;		// robots.txt Cache Refresh Duration
 	const size_t MAX_ROBOTS_CACHE_SIZE;					// robots.txt Cache Max Count Limit (If exceeded limit, clear all cathy)

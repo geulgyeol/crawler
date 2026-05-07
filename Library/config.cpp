@@ -7,15 +7,16 @@ using namespace std;
 Config::Config() :
     CRAWLER_NAME("geulgyeol-crawler"),
     USER_AGENT("User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:146.0; compatible; " + CRAWLER_NAME + "/2.0; +https://github.com/geulgyeol) Gecko/20100101 Firefox/145.0"),
-    LINK_KV_ENDPOINT("localhost:8080"), //link-kv.default.svc.cluster.local 
+    LINK_KV_ENDPOINT("localhost:8082"), //link-kv.default.svc.cluster.local 
     HTML_STORAGE_ENDPOINT("localhost:8081"), //html-precompressor.default.svc.cluster.local
-    QUEUE_ENDPOINT("localhost:8082"),
+    PULSAR_SERVICE_URL("pulsar+ssl://pulsar.tail372bfc.ts.net:6651"), //pulsar+ssl://pulsar.tail372bfc.ts.net:6651, pulsar://localhost:6650
+    PULSAR_NAMESPACE("persistent://public/default/"),
     MAX_CONCURRENT_REQUESTS(10),
     BODIES_THRESHOLD(100),
     NAVER_TIMEOUT_WAITING_TIME(60000),
-    QUEUE_TIME_LIMIT(110),
-    ENABLE_MESSAGE_QUEUE_THRESHOLD(40),
-    DISABLE_MESSAGE_QUEUE_THRESHOLD(100),
+    MAX_MESSAGE_QUEUE_SIZE(100),
+    MAX_BATCHING_MESSAGE_COUNT(100),
+    MAX_BATCHING_DELAY(1000),
     ROBOTS_CACHE_DURATION_SECONDS(3600),
     MAX_ROBOTS_CACHE_SIZE(100),
     CONNECTION_TIMEOUT_SECONDS(30L),
