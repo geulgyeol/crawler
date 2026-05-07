@@ -8,6 +8,7 @@
 #include <thread>
 #include <chrono>
 #include <curl/curl.h>
+#include <pulsar/Client.h>
 #include <regex>
 #include <vector>
 #include <mutex>
@@ -22,6 +23,7 @@
 
 
 using namespace std;
+using namespace pulsar;
 
 
 Config config = Config();
@@ -32,7 +34,9 @@ const string USER_AGENT = config.USER_AGENT;
 
 const string LINK_KV_ENDPOINT = config.LINK_KV_ENDPOINT;
 const string HTML_STORAGE_ENDPOINT = config.HTML_STORAGE_ENDPOINT;
-const string QUEUE_ENDPOINT = config.QUEUE_ENDPOINT;
+const string PULSAR_SERVICE_URL = config.PULSAR_SERVICE_URL;
+
+const string PULSAR_NAMESPACE = config.PULSAR_NAMESPACE;
 
 const int MAX_CONCURRENT_REQUESTS = config.MAX_CONCURRENT_REQUESTS;
 
@@ -40,18 +44,20 @@ const int BODIES_THRESHOLD = config.BODIES_THRESHOLD;
 
 const int NAVER_TIMEOUT_WAITING_TIME = config.NAVER_TIMEOUT_WAITING_TIME;
 
-const int QUEUE_TIME_LIMIT = config.QUEUE_TIME_LIMIT;
-
 const long CONNECTION_TIMEOUT_SECONDS = config.CONNECTION_TIMEOUT_SECONDS;
 const long RESPONSE_TIMEOUT_SECONDS = config.RESPONSE_TIMEOUT_SECONDS;
 
-const int ENABLE_MESSAGE_QUEUE_THRESHOLD = config.ENABLE_MESSAGE_QUEUE_THRESHOLD;
-const int DISABLE_MESSAGE_QUEUE_THRESHOLD = config.DISABLE_MESSAGE_QUEUE_THRESHOLD;
+const int MAX_MESSAGE_QUEUE_SIZE = config.MAX_MESSAGE_QUEUE_SIZE;
+
+const int MAX_BATCHING_MESSAGE_COUNT = config.MAX_BATCHING_MESSAGE_COUNT;
+const int MAX_BATCHING_DELAY = config.MAX_BATCHING_DELAY;
 
 const long long ROBOTS_CACHE_DURATION_SECONDS = config.ROBOTS_CACHE_DURATION_SECONDS;
 const size_t MAX_ROBOTS_CACHE_SIZE = config.MAX_ROBOTS_CACHE_SIZE;
 
 const bool VERBOSE = config.VERBOSE;
+
+const Logger::Level LOG_LEVEL = config.LOG_LEVEL;
 
 map<const string, const int> CRAWL_PER_SECOND_MAP = config.CRAWL_PER_SECOND_MAP;
 
@@ -60,7 +66,6 @@ map<string, chrono::steady_clock::time_point> lastTimes;
 
 
 mutex messageQueueMutex;
-mutex deleteQueueMutex;
 mutex lastTimesMutex;
 
 
@@ -113,28 +118,6 @@ struct RequestData {
     RequestData& operator=(const RequestData&) = delete;
 };
 
-struct Message {
-    string message;
-    int id;
-    int timeLimit;
-
-    Message() {
-        message = "";
-        id = -1;
-        timeLimit = -1;
-    }
-
-    Message(string message_v, int id_v) {
-        message = message_v;
-        id = id_v;
-        timeLimit = GetCurTimestamp() + QUEUE_TIME_LIMIT;
-    }
-
-    bool isLocked() {
-        return (timeLimit < GetCurTimestamp());
-    }
-};
-
 
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
 bool IsAllowedByRobotsGeneral(const string& fullUrl);
@@ -174,231 +157,13 @@ void Delay(char blogType, const int DELAY_MILLI_N, const int DELAY_MILLI_T, stri
     }
 }
 
-void PostQueue(string queueName, vector<string>& payloads, vector<bool> checker = {}) {
-    if (payloads.empty()) return;
-
-    auto start = std::chrono::steady_clock::now();
-
-    string readBuffer;
-
-    CURL* curl = curl_easy_init();
-    if (curl) {
-        string content = "{\"payloads\":[";
-
-        int payloadSearchCnt = 0;
-        int i = 0;
-        for (const string& payload : payloads) {
-            if (!checker.empty() && checker.size() > i) {
-                if (!checker[i]) continue;
-            }
-
-            content.append("\"" + payload + "\"");
-            if (++payloadSearchCnt != payloads.size()) {
-                content.append(",");
-            }
-        }
-
-        if (content[content.size() - 1] == ',') {
-            content.pop_back();
-        }
-
-        content.append("]}");
-
-        string url = config.QUEUE_ENDPOINT + "/" + queueName;
-
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, content.c_str());
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, content.length());
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-
-        struct curl_slist* headers = NULL;
-        headers = curl_slist_append(headers, config.USER_AGENT.c_str());
-        headers = curl_slist_append(headers, "Content-Type: application/json");
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-
-        CURLcode response_code = curl_easy_perform(curl);
-        curl_slist_free_all(headers);
-        if (response_code == CURLE_OK) {
-            cout << to_string(payloads.size()) + " " + queueName + " Queue POST in " + GetTakenTime(start) + "\n";
-        }
-        else {
-            cerr << queueName + " Queue POST FAILED.\n";
-        }
-    }
-}
-
-void GetQueue(string queueName, queue<Message>* messageQueue) {
-    string readBuffer;
-    bool subscribeEnabled = false;
-
-    CURL* curl = curl_easy_init();
-    if (curl) {
-        while (true) {
-            auto start = std::chrono::steady_clock::now();
-            readBuffer = "";
-
-            {
-                lock_guard<mutex> lock(messageQueueMutex);
-                subscribeEnabled = (messageQueue->empty() || messageQueue->size() < ENABLE_MESSAGE_QUEUE_THRESHOLD);
-            }
-
-            if (subscribeEnabled) {
-                bool found = false;
-
-                string url = config.QUEUE_ENDPOINT + "/" + queueName;
-
-                curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-                curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "GET");
-                curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-                curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-
-                struct curl_slist* headers = NULL;
-                headers = curl_slist_append(headers, config.USER_AGENT.c_str());
-                headers = curl_slist_append(headers, "Content-Type: application/json");
-                curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-
-                CURLcode response_code = curl_easy_perform(curl);
-                curl_slist_free_all(headers);
-                if (response_code == CURLE_OK) {
-                    int findPos = 0;
-                    bool isSearching = true;
-
-                    while (isSearching) {
-                        int idPos = readBuffer.find("\"id\":", findPos);
-                        int idEndPos = readBuffer.find(",", findPos);
-                        int payloadPos = readBuffer.find("\"payload\":", findPos);
-                        int payloadEndPos = readBuffer.find("}", findPos);
-
-                        if (idPos == string::npos) break;
-
-                        int id = stoi(readBuffer.substr(idPos + 5, idEndPos - (idPos + 5)));
-                        string payload = readBuffer.substr(payloadPos + 11, payloadEndPos - 1 - (payloadPos + 11));
-
-                        if (readBuffer[payloadEndPos + 1] == ']') {
-                            isSearching = false;
-                        }
-
-                        findPos = payloadEndPos + 2;
-
-                        {
-                            lock_guard<mutex> lock(messageQueueMutex);
-                            messageQueue->push(Message(payload, id));
-                        }
-
-                        found = true;
-                    }
-                }
-                else {
-                    cerr << queueName + " Queue GET FAILED.\n";
-                }
-
-                if (found) {
-                    cout << queueName + " Queue GET in " + GetTakenTime(start) + "\n";
-                }
-            }
-
-            Delay(1000, "subscribe");
-        }
-    }
-}
-
-void DeleteQueue(string queueName, queue<int>* deleteQueue) {
-    string readBuffer;
-
-    CURL* curl = curl_easy_init();
-    if (curl) {
-        while (true) {
-            auto start = std::chrono::steady_clock::now();
-            readBuffer = "";
-
-            bool deleteQueueEmpty = true;
-            {
-                lock_guard<mutex> lock(deleteQueueMutex);
-                deleteQueueEmpty = deleteQueue->empty();
-            }
-
-            if (deleteQueueEmpty) {
-                Delay(1000, "delete");
-                continue;
-            }
-
-            string content = "{\"ids\": [";
-
-            int idSearchCnt = 0;
-            vector<int> ids;
-            int deleteQueueSize = 0;
-
-            {
-                lock_guard<mutex> lock(deleteQueueMutex);
-                deleteQueueSize = deleteQueue->size();
-            }
-
-            for (int i = 0; i < deleteQueueSize; i++) {
-                {
-                    lock_guard<mutex> lock(deleteQueueMutex);
-                    ids.push_back(deleteQueue->front());
-                    deleteQueue->pop();
-                }
-            }
-
-            for (const int& id : ids) {
-                content.append(to_string(id));
-                if (++idSearchCnt != ids.size()) {
-                    content.append(",");
-                }
-            }
-
-            content.append("]}");
-
-            string url = config.QUEUE_ENDPOINT + "/" + queueName;
-
-            curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-            curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
-            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, content.c_str());
-            curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, content.length());
-            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-
-            struct curl_slist* headers = NULL;
-            headers = curl_slist_append(headers, config.USER_AGENT.c_str());
-            headers = curl_slist_append(headers, "Content-Type: application/json");
-            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-
-
-            CURLcode response_code = curl_easy_perform(curl);
-            curl_slist_free_all(headers);
-
-            int http_code = 0;
-            if (response_code == CURLE_OK) {
-                curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-
-                if (http_code == 200) {
-                    cout << to_string(ids.size()) + " " + queueName + " Queue DELETE in " + GetTakenTime(start) + "\n";
-                }
-                else if (http_code == 400) {
-                    cout << queueName + " Queue DELETE FAILED. HTTP Code: " + to_string(http_code) + "\n";
-                }
-            }
-            else {
-                cerr << queueName + " Queue DELETE FAILED. HTTP Code: " + to_string(http_code) + "\n";
-            }
-
-            Delay(1000, "delete");
-        }
-    }
-}
-
 struct curl_slist* SetCURL(CURL* curl, string* readBuffer, string url, string referer = "", string range = "", string request = "") {
     if (readBuffer) {
         readBuffer->clear();
     }
 
     struct curl_slist* headers = NULL;
-    
+
     curl_easy_reset(curl);
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
@@ -406,6 +171,8 @@ struct curl_slist* SetCURL(CURL* curl, string* readBuffer, string url, string re
     curl_easy_setopt(curl, CURLOPT_PRIVATE, readBuffer);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, CONNECTION_TIMEOUT_SECONDS);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, RESPONSE_TIMEOUT_SECONDS);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
     if (VERBOSE) curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
     headers = curl_slist_append(headers, USER_AGENT.c_str());
@@ -429,7 +196,124 @@ struct curl_slist* SetCURL(CURL* curl, string* readBuffer, string url, string re
     return headers;
 }
 
+struct curl_slist* SetCurlWithRequest(CURL* curl, string* readBuffer, string url, string request = "", string payload = "") {
+    if (readBuffer) {
+        readBuffer->clear();
+    }
 
+    struct curl_slist* headers = NULL;
+
+
+    curl_easy_reset(curl);
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, readBuffer);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, CONNECTION_TIMEOUT_SECONDS);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, RESPONSE_TIMEOUT_SECONDS);
+    if (VERBOSE) curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+
+    headers = curl_slist_append(headers, USER_AGENT.c_str());
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+
+    if (request != "") {
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, request.c_str());
+    }
+
+    if (payload != "") {
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, payload.c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, payload.length());
+    }
+
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+    return headers;
+}
+
+
+ClientConfiguration CreateClientConfig(Logger::Level logLevel = Logger::Level::LEVEL_ERROR) {
+    ClientConfiguration config;
+    config.setLogger(new ConsoleLoggerFactory(logLevel));
+    config.setTlsAllowInsecureConnection(true);
+    config.setValidateHostName(false);
+
+    return config;
+}
+
+Result CreateProducer(Client client, Producer* producer, string topic) {
+    ProducerConfiguration prop;
+    prop.setBatchingEnabled(true);
+    prop.setBatchingMaxMessages(MAX_BATCHING_MESSAGE_COUNT);
+    prop.setBatchingMaxPublishDelayMs(MAX_BATCHING_DELAY);
+
+    Result res = client.createProducer(PULSAR_NAMESPACE + topic, prop, *producer);
+
+    if (res != ResultOk) {
+        cout << "Failed to Create " + topic + " Producer\n";
+    }
+    else {
+        cout << "Success to Create " + topic + " Producer\n";
+    }
+
+    return res;
+}
+
+Result SubscribeConsumer(Client client, Consumer* consumer, string topic) {
+    ConsumerConfiguration consumerConfig;
+    consumerConfig.setConsumerType(pulsar::ConsumerType::ConsumerShared);
+
+    Result res = client.subscribe(PULSAR_NAMESPACE + topic, topic + "-sub", consumerConfig, *consumer);
+
+    if (res != ResultOk) {
+        cout << "Failed to Subscribe " + topic + " Consumer\n";
+    }
+    else {
+        cout << "Success to Subscribe " + topic + " Consumer\n";
+    }
+
+    return res;
+}
+
+
+
+void SendMessages(Producer producer, const vector<string>& messages, vector<bool> registerChecker = {}) {
+    if (messages.empty()) return;
+
+    int checkerSize = (registerChecker.empty() ? 0 : registerChecker.size());
+
+    for (int i = 0; i < messages.size(); i++) {
+        string message = messages[i];
+        if (checkerSize > i && !registerChecker[i]) continue;
+
+        Message msg = MessageBuilder().setContent(string(message)).build();
+
+        producer.sendAsync(msg, [](Result result, const MessageId& id) {
+            if (result != ResultOk) {
+                std::cerr << "Failed to Send" << std::endl;
+            }
+        });
+    }
+}
+
+void receiveMessages(Consumer consumer, queue<string>* messageQueue) {
+    Message msg;
+    int count = 0;
+
+    while (true) {
+        {
+            lock_guard<mutex> lock(messageQueueMutex);
+            count = (messageQueue->empty() ? 0 : messageQueue->size());
+        }
+
+        if(count < MAX_MESSAGE_QUEUE_SIZE && consumer.receive(msg, 1000) == ResultOk) {
+            consumer.acknowledge(msg);
+            
+            {
+                lock_guard<mutex> lock(messageQueueMutex);
+                messageQueue->push(msg.getDataAsString());
+            }
+        }
+    }
+}
 
 void PrintProgressBar(int current, int total) {
     cout << "(" + to_string(current) + "/" + to_string(total) + ")" + "\r";
@@ -881,7 +765,7 @@ void PostHTMLContent(map<string, string>&& bodies) {
     }
 }
 
-bool DeleteFromStorage(CURL* curl, const string link, const string storage) { // kv or html
+/*bool DeleteFromStorage(CURL* curl, const string link, const string storage) { // kv or html
     string url;
     if (storage == "kv") {
         url = config.LINK_KV_ENDPOINT + "/" + link;
@@ -908,7 +792,7 @@ bool DeleteFromStorage(CURL* curl, const string link, const string storage) { //
     }
 
     return httpCode == 201;
-}
+}*/
 
 string GetTakenTime(std::chrono::steady_clock::time_point start) {
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();

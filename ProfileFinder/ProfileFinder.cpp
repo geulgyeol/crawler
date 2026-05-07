@@ -11,8 +11,7 @@ const int CRAWL_PER_SECOND_T = CRAWL_PER_SECOND_MAP.at("ProfileFinder_T");
 const int DELAY_MILLI_N = 1000 / CRAWL_PER_SECOND_N;
 const int DELAY_MILLI_T = 1000 / CRAWL_PER_SECOND_T;
 
-queue<Message> messageQueue;
-queue<int> deleteQueue;
+queue<string> messageQueue;
 
 
 int main() {
@@ -21,9 +20,7 @@ int main() {
 
     //Nhaesung_88/223597388359
     //Tlsas4565/8838853
-    //Tlsas4565/8838853
-    //Tnelastory/35
-    //Tnelastory/37
+    //Tlsas4565/8838853d
 
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
@@ -33,10 +30,18 @@ int main() {
     curl_global_init(CURL_GLOBAL_DEFAULT);
     CURL* curl;
 
-    thread linkFinderSubscribeThread(GetQueue, "profile", &messageQueue);
+    Client client(PULSAR_SERVICE_URL, CreateClientConfig(LOG_LEVEL));
+
+    Producer userProducer;
+    Result res1 = CreateProducer(client, &userProducer, "user");
+
+    Consumer consumer;
+    Result res2 = SubscribeConsumer(client, &consumer, "profile");
+
+    if (res1 != ResultOk || res2 != ResultOk) return 0;
+
+    thread linkFinderSubscribeThread(receiveMessages, consumer, &messageQueue);
     linkFinderSubscribeThread.detach();
-    thread linkFinderDeleteThread(DeleteQueue, "profile", &deleteQueue);
-    linkFinderDeleteThread.detach();
 
     while (true) {
         bool is_empty;
@@ -51,22 +56,18 @@ int main() {
         }
 
 
-        Message message;
+        string message;
         {
             std::lock_guard<std::mutex> lock(messageQueueMutex);
-            message = { messageQueue.front() };
+            message = messageQueue.front();
             messageQueue.pop();
         }
 
-        string link = message.message;
-        if (message.isLocked() || link.empty()) {
+        if (message.empty()) {
             continue;
         }
 
-        {
-            lock_guard<mutex> lock(deleteQueueMutex);
-            deleteQueue.push(message.id);
-        }
+        string link = message;
 
         string readBuffer;
 
@@ -125,7 +126,7 @@ int main() {
                     registerChecker[i] = RegisterLink(curl, blogIds[i], "users");
                 }
 
-                PostQueue("user", blogIds, registerChecker);
+                SendMessages(userProducer, blogIds, registerChecker);
                 Delay(DELAY_MILLI_N, "main");
             }
             else if (link[0] == 'T') {
@@ -184,7 +185,7 @@ int main() {
                     registerChecker[i] = RegisterLink(curl, blogHomepages[i], "users");
                 }
 
-                PostQueue("user", blogHomepages, registerChecker);
+                SendMessages(userProducer, blogHomepages, registerChecker);
                 Delay(DELAY_MILLI_T, "main");
             }
 

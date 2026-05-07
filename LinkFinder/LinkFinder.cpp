@@ -11,8 +11,7 @@ const int CRAWL_PER_SECOND_T = CRAWL_PER_SECOND_MAP.at("LinkFinder_T");
 const int DELAY_MILLI_N = 1000 / CRAWL_PER_SECOND_N;
 const int DELAY_MILLI_T = 1000 / CRAWL_PER_SECOND_T;
 
-queue<Message> messageQueue;
-queue<int> deleteQueue;
+queue<string> messageQueue;
 
 struct TistoryRequestData {
     string* buffer;
@@ -34,10 +33,22 @@ int main() {
     curl_global_init(CURL_GLOBAL_DEFAULT);
     CURL* curl;
 
-    thread linkFinderSubscribeThread(GetQueue, "user", &messageQueue);
+    Client client(PULSAR_SERVICE_URL, CreateClientConfig(LOG_LEVEL));
+
+    Producer profileProducer;
+    Result res1 = CreateProducer(client, &profileProducer, "profile");
+
+    Producer contentProducer;
+    Result res2 = CreateProducer(client, &contentProducer, "content");
+
+    Consumer consumer;
+    Result res3 = SubscribeConsumer(client, &consumer, "user");
+
+    if (res1 != ResultOk || res2 != ResultOk || res3 != ResultOk) return 0;
+
+    thread linkFinderSubscribeThread(receiveMessages, consumer, &messageQueue);
     linkFinderSubscribeThread.detach();
-    thread linkFinderDeleteThread(DeleteQueue, "user", &deleteQueue);
-    linkFinderDeleteThread.detach();
+
 
     while (true) {
         bool is_empty;
@@ -51,22 +62,18 @@ int main() {
             continue;
         }
 
-        Message message;
+        string message;
         {
             std::lock_guard<std::mutex> lock(messageQueueMutex);
-            message = { messageQueue.front() };
+            message = messageQueue.front();
             messageQueue.pop();
         }
 
-        string link = message.message;
-        if (message.isLocked() || link.empty()) {
+        if (message.empty()) {
             continue;
         }
 
-        {
-            lock_guard<mutex> lock(deleteQueueMutex);
-            deleteQueue.push(message.id);
-        }
+        string link = message;
 
         vector<string*> buffers;
         string readBuffer;
@@ -81,7 +88,6 @@ int main() {
 
             if (link[0] == 'N') {
                 string blogName = link.substr(1);
-                vector<string> validPages;
                 int collectCnt = 0;
                 int currentPage = 1;
 
@@ -116,6 +122,8 @@ int main() {
                     int lastIndex = readBuffer.find("tagQueryString");
                     int pagesFoundInThisCall = 0;
 
+                    vector<string> validPages;
+
                     while (true) {
                         int newIndex = readBuffer.find("logNo", lastIndex);
                         if (newIndex == string::npos) {
@@ -149,14 +157,14 @@ int main() {
                         break;
                     }
 
+                    SendMessages(profileProducer, validPages);
+                    SendMessages(contentProducer, validPages);
+
                     currentPage++;
                     Delay(DELAY_MILLI_N, "main");
                 }
 
                 cout << "\n";
-
-                PostQueue("profile", validPages);
-                PostQueue("content", validPages);
 
                 Delay(DELAY_MILLI_N, "main");
             }
@@ -216,6 +224,7 @@ int main() {
                 map<CURL*, unique_ptr<TistoryRequestData>> requests;
 
                 vector<string> validPages;
+                int validPageCnt = 0;
                 int emptyPageCnt = 0;
                 int currentIndex = maxIndex;
                 int completed = 0;
@@ -283,6 +292,13 @@ int main() {
                                     if (htmlTitle != "TISTORY") {
                                         emptyPageCnt = 0;
                                         validPages.push_back("T" + link.substr(1) + "/" + to_string(raw_data_ptr->index));
+                                        validPageCnt++;
+
+                                        if (validPages.size() >= 100) {
+                                            SendMessages(profileProducer, validPages);
+                                            SendMessages(contentProducer, validPages);
+                                            validPages.clear();
+                                        }
                                     }
                                     else {
                                         emptyPageCnt++;
@@ -315,11 +331,11 @@ int main() {
                     }
                 }
 
-                cout << "\n# Valid Page Count : " + to_string(validPages.size()) + ", " + GetTakenTime(start) + "\n";
+                cout << "\n# Valid Page Count : " + to_string(validPageCnt) + ", " + GetTakenTime(start) + "\n";
                 curl_multi_cleanup(multi_handle);
 
-                PostQueue("profile", validPages);
-                PostQueue("content", validPages);
+                SendMessages(profileProducer, validPages);
+                SendMessages(contentProducer, validPages);
 
                 Delay(DELAY_MILLI_T, "main");
             }
@@ -339,6 +355,7 @@ int main() {
         }
     }
 
+    client.close();
     curl_global_cleanup();
 
     return 0;

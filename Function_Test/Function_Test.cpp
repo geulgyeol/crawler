@@ -5,6 +5,7 @@
 #endif
 
 using namespace std;
+using namespace pulsar;
 
 
 int main() {
@@ -16,30 +17,54 @@ int main() {
     SetConsoleCP(CP_UTF8);
 #endif
 
-    CURL* curl;
+    Client client(PULSAR_SERVICE_URL, CreateClientConfig(LOG_LEVEL));
+
+    Producer producer;
+    Result res = CreateProducer(client, &producer, "user");
+
+    if (res != ResultOk) {
+        std::cerr << "Failed to Create Producer: " << res << std::endl;
+        return 0;
+    }
+
+    Consumer consumer;
+    res = SubscribeConsumer(client, &consumer, "user");
+    if (res != ResultOk) {
+        std::cerr << "Failed to Subscribe Consumer: " << res << std::endl;
+        return 0;
+    }
+
+    SendMessages(producer, {"Nhaesung_88", "N1_do_everything", "Tmungdenson"});
+
+    //SendMessages(producer, { "Nhaesung_88" });
+
+    /*while (true) {
+        Message msg;
+        consumer.receive(msg);
+        consumer.acknowledge(msg);
+
+        cout << msg.getDataAsString() << endl;
+    }*/
+
+    Delay(2000, "aaa");
+
+    client.close();
+
+
+    /*CURL* curl;
     string readBuffer;
     curl_global_init(CURL_GLOBAL_DEFAULT);
     curl = curl_easy_init();
 
-    //thread linkFinderSubscribeThread(GetQueue, "content", &messageQueue);
-    //linkFinderSubscribeThread.detach();
-    //while (true) {}
+    thread linkFinderSubscribeThread(GetQueue, "content", &messageQueue);
+    linkFinderSubscribeThread.detach();
+    while (true) {}
 
     if (curl) {
-        vector<string> payloads = {"Nhaesung_88","Tnelastory","N1_do_everything","Tmungdenson"};
-        PostQueue("user", payloads);
-
-        //vector<string> payloads = {"Tmungdenson/2"};
-        //PostQueue("content", payloads);
         
-
-        //GetQueue("content");
-
-        /*vector<int> ids = {11,12,13,14,15,16,17,18,19,20};
-        DeleteQueue(ids, "content");*/
     }
 
-    curl_global_cleanup();
+    curl_global_cleanup();*/
 
     return 0;
 }

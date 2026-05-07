@@ -1,10 +1,10 @@
 add_executable (Function_Test "Function_Test.cpp")
 
 target_link_libraries(Function_Test PUBLIC 
-	Library
+    Library
 )
 
-if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET Function_Test PROPERTY CXX_STANDARD 17)
-endif()
-
+set_target_properties(Function_Test PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)

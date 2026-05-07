@@ -4,7 +4,7 @@ target_link_libraries(LinkFinder PUBLIC
 	Library
 )
 
-if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET LinkFinder PROPERTY CXX_STANDARD 17)
-endif()
-
+set_target_properties(LinkFinder PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
