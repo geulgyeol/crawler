@@ -104,7 +104,7 @@ int main() {
         return 0;
     }
 
-    Client client(PULSAR_SERVICE_URL, CreateClientConfig());
+    Client client(PULSAR_SERVICE_URL, CreateClientConfig(LOG_LEVEL));
 
     Producer contentProducer;
     Result res1 = CreateProducer(client, &contentProducer, "content");

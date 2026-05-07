@@ -57,6 +57,8 @@ const size_t MAX_ROBOTS_CACHE_SIZE = config.MAX_ROBOTS_CACHE_SIZE;
 
 const bool VERBOSE = config.VERBOSE;
 
+const Logger::Level LOG_LEVEL = config.LOG_LEVEL;
+
 map<const string, const int> CRAWL_PER_SECOND_MAP = config.CRAWL_PER_SECOND_MAP;
 
 map<string, chrono::steady_clock::time_point> lastTimes;

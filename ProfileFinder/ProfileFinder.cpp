@@ -30,7 +30,7 @@ int main() {
     curl_global_init(CURL_GLOBAL_DEFAULT);
     CURL* curl;
 
-    Client client(PULSAR_SERVICE_URL, CreateClientConfig());
+    Client client(PULSAR_SERVICE_URL, CreateClientConfig(LOG_LEVEL));
 
     Producer userProducer;
     Result res1 = CreateProducer(client, &userProducer, "user");

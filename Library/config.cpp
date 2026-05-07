@@ -21,7 +21,8 @@ Config::Config() :
     MAX_ROBOTS_CACHE_SIZE(100),
     CONNECTION_TIMEOUT_SECONDS(30L),
     RESPONSE_TIMEOUT_SECONDS(30L),
-    VERBOSE(false)
+    VERBOSE(false),
+    LOG_LEVEL(pulsar::Logger::Level::LEVEL_ERROR)
 {
     CRAWL_PER_SECOND_MAP.insert({ "LinkFinder_N", 3 });
     CRAWL_PER_SECOND_MAP.insert({ "LinkFinder_T", 25 });

@@ -17,7 +17,7 @@ int main() {
     SetConsoleCP(CP_UTF8);
 #endif
 
-    Client client(PULSAR_SERVICE_URL, CreateClientConfig());
+    Client client(PULSAR_SERVICE_URL, CreateClientConfig(LOG_LEVEL));
 
     Producer producer;
     Result res = CreateProducer(client, &producer, "user");

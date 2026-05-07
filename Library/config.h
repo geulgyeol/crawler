@@ -3,6 +3,7 @@
 
 #include <string>
 #include <map>
+#include <pulsar/Client.h>
 
 using namespace std;
 
@@ -16,7 +17,7 @@ public:
 
 	const string LINK_KV_ENDPOINT;						// link-kv
 	const string HTML_STORAGE_ENDPOINT;					// html-storage
-	const string PULSAR_SERVICE_URL;					// 펄서 서비스 URL
+	const string PULSAR_SERVICE_URL;					// Pulsar 서비스 URL
 
 	const string PULSAR_NAMESPACE;						// 
 
@@ -38,6 +39,8 @@ public:
 	const size_t MAX_ROBOTS_CACHE_SIZE;					// robots.txt Cache Max Count Limit (If exceeded limit, clear all cathy)
 
 	const bool VERBOSE;									// enable debug output
+	
+	const pulsar::Logger::Level LOG_LEVEL;				// Pulsar 로그 레벨 (INFO, DEBUG, WARN, ERROR)
 
 	map<const string, const int> CRAWL_PER_SECOND_MAP;	// Crawl Per Second (**DONT** change string, 10 = crawl per 0.1s)
 };
