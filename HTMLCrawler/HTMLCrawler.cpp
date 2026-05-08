@@ -236,7 +236,7 @@ int main() {
                 else {
                     cerr << "FAILED for [" + link + "] (Code: " + to_string(response_code) + "). Error: " + curl_easy_strerror(curlMsg->data.result) + " " + GetTakenTime(start_) + " Taken: " + to_string(total_time) + "s\n";
 
-                    if (curlMsg->data.result == 28) {
+                    if (curlMsg->data.result == 28 || curlMsg->data.result == 0) {
 
                         vector<CURL*> failedHandles;
 
@@ -246,7 +246,6 @@ int main() {
                             }
                         }
 
-                        //delete buffer;
                         for (int i = 0; i < failedHandles.size(); i++) {
                             CURL* failedHandle = failedHandles[i];
 
@@ -266,6 +265,8 @@ int main() {
                         }
 
                         Delay(NAVER_TIMEOUT_WAITING_TIME, "main");
+
+                        nextAdd = clock::now();
 
                         continue;
                     }

@@ -241,7 +241,6 @@ int main() {
                 map<CURL*, unique_ptr<TistoryRequestData>> requests;
 
                 vector<string> validPages;
-                int validPageCnt = 0;
                 int emptyPageCnt = 0;
                 int currentIndex = maxIndex;
                 int completed = 0;
@@ -309,13 +308,6 @@ int main() {
                                     if (htmlTitle != "TISTORY") {
                                         emptyPageCnt = 0;
                                         validPages.push_back("T" + link.substr(1) + "/" + to_string(raw_data_ptr->index));
-                                        validPageCnt++;
-
-                                        if (validPages.size() >= 100) {
-                                            SendMessages(profileProducer, validPages);
-                                            SendMessages(contentProducer, validPages);
-                                            validPages.clear();
-                                        }
                                     }
                                     else {
                                         emptyPageCnt++;
@@ -348,13 +340,15 @@ int main() {
                     }
                 }
 
-                cout << "\n# Valid Page Count : " + to_string(validPageCnt) + ", " + GetTakenTime(start) + "\n";
+                cout << "\n# Valid Page Count : " + to_string(validPages.size()) + ", " + GetTakenTime(start) + "\n";
                 curl_multi_cleanup(multi_handle);
 
                 SendMessages(profileProducer, validPages);
                 SendMessages(contentProducer, validPages);
 
                 ack = true;
+
+                cout << "???: " + message + "\n";
 
                 Delay(DELAY_MILLI_T, "main");
             }

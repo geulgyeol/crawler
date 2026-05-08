@@ -269,6 +269,7 @@ Result CreateProducer(Client client, Producer* producer, string topic) {
     prop.setBatchingEnabled(true);
     prop.setBatchingMaxMessages(MAX_BATCHING_MESSAGE_COUNT);
     prop.setBatchingMaxPublishDelayMs(MAX_BATCHING_DELAY);
+    prop.setBlockIfQueueFull(true);
 
     Result res = client.createProducer(PULSAR_NAMESPACE + topic, prop, *producer);
 
@@ -341,10 +342,12 @@ void receiveMessages(Consumer consumer, queue<Msg>* messageQueue) {
 
 void AckMsg(Msg msg) {
     msg.consumer->acknowledge(msg.msg);
+    //cout << "ACK: " << msg.message << "\n";
 }
 
 void NackMsg(Msg msg) {
     msg.consumer->negativeAcknowledge(msg.msg);
+    //cout << "NACK: " << msg.message << "\n";
 }
 
 
