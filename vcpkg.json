@@ -1,8 +1,0 @@
-{
-  "name": "geulgyeol-crawler",
-  "version-string": "0.1.0",
-  "dependencies": [
-    "pulsar-client-cpp",
-    "curl"
-  ]
-}
