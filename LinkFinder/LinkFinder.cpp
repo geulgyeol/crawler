@@ -102,6 +102,7 @@ int main() {
 
                     if (!IsAllowedByRobotsGeneral(url)) {
                         cout << "SKIP: Robots.txt denied access for [" + link + "] URL [" + url + "]\n";
+                        curl_easy_cleanup(curl);
                         break;
                     }
 
@@ -112,6 +113,7 @@ int main() {
                     curl_slist_free_all(headers);
                     if (res != CURLE_OK) {
                         cerr << "curl_easy_perform() failed on page " + to_string(currentPage) + ": " + curl_easy_strerror(res) + "\n";
+                        curl_easy_cleanup(curl);
                         break;
                     }
 
@@ -355,7 +357,12 @@ int main() {
         }
     }
 
+    profileProducer.close();
+    contentProducer.close();
+    consumer.close();
+
     client.close();
+
     curl_global_cleanup();
 
     return 0;
