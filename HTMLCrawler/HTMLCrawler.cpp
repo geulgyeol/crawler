@@ -292,6 +292,9 @@ int main() {
         bodies.clear();
     }
 
+    contentProducer.close();
+    consumer.close();
+
     if (curl) {
         curl_easy_cleanup(curl);
     }

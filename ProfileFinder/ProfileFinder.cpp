@@ -197,6 +197,9 @@ int main() {
         }
     }
 
+    userProducer.close();
+    consumer.close();
+
     curl_global_cleanup();
 
     return 0;

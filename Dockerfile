@@ -33,7 +33,7 @@ RUN git clone https://github.com/microsoft/vcpkg.git ${VCPKG_ROOT} \
 
 # Install required libraries with correct triplet
 RUN TRIPLET=$(if [ "$TARGETARCH" = "arm64" ]; then echo "arm64-linux-release"; else echo "x64-linux-release"; fi) && \
-    VCPKG_BUILD_TYPE=release ${VCPKG_ROOT}/vcpkg install google-cloud-cpp[pubsub]:${TRIPLET} curl:${TRIPLET} --clean-after-build
+    VCPKG_BUILD_TYPE=release ${VCPKG_ROOT}/vcpkg install pulsar-client-cpp:${TRIPLET} curl:${TRIPLET} --clean-after-build
 
 WORKDIR /src
 

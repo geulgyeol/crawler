@@ -9,16 +9,11 @@ add_library(
     "config.cpp"
 )
 
-target_include_directories(Library PUBLIC 
-    "${CMAKE_CURRENT_SOURCE_DIR}"
-    "${VCPKG_ROOT}/include"
-)
+target_include_directories(Library PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
 target_link_libraries(Library PUBLIC
-    $<$<CONFIG:Debug>:"${VCPKG_ROOT}/debug/lib/pulsar">
-    $<$<CONFIG:Release>:"${VCPKG_ROOT}/lib/pulsar">
-    $<$<CONFIG:Debug>:"${VCPKG_ROOT}/debug/lib/libcurl-d">
-    $<$<CONFIG:Release>:"${VCPKG_ROOT}/lib/libcurl">
+    unofficial::pulsar::pulsar
+    CURL::libcurl
 )
 
 set_target_properties(Library PROPERTIES
