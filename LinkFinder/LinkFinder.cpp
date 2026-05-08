@@ -348,8 +348,6 @@ int main() {
 
                 ack = true;
 
-                cout << "???: " + message + "\n";
-
                 Delay(DELAY_MILLI_T, "main");
             }
             cout << "\n";
