@@ -119,6 +119,31 @@ struct RequestData {
 };
 
 
+struct Msg {
+    string message;
+    pulsar::Message msg;
+    Consumer* consumer;
+
+    Msg(){}
+
+    Msg(pulsar::Message& _msg, Consumer* _consumer) {
+        message = _msg.getDataAsString();
+        msg = _msg;
+        consumer = _consumer;
+    }
+
+    ~Msg() {
+        //delete msg;
+    }
+};
+
+
+struct ScopeGuard {
+    function<void()> onExit;
+    ~ScopeGuard() { if (onExit) onExit(); }
+};
+
+
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
 bool IsAllowedByRobotsGeneral(const string& fullUrl);
 string GetTakenTime(std::chrono::steady_clock::time_point start);
@@ -284,7 +309,7 @@ void SendMessages(Producer producer, const vector<string>& messages, vector<bool
         string message = messages[i];
         if (checkerSize > i && !registerChecker[i]) continue;
 
-        Message msg = MessageBuilder().setContent(string(message)).build();
+        pulsar::Message msg = MessageBuilder().setContent(string(message)).build();
 
         producer.sendAsync(msg, [](Result result, const MessageId& id) {
             if (result != ResultOk) {
@@ -294,26 +319,34 @@ void SendMessages(Producer producer, const vector<string>& messages, vector<bool
     }
 }
 
-void receiveMessages(Consumer consumer, queue<string>* messageQueue) {
-    Message msg;
+void receiveMessages(Consumer consumer, queue<Msg>* messageQueue) {
     int count = 0;
 
     while (true) {
+        pulsar::Message msg;
+
         {
             lock_guard<mutex> lock(messageQueueMutex);
             count = (messageQueue->empty() ? 0 : messageQueue->size());
         }
 
         if(count < MAX_MESSAGE_QUEUE_SIZE && consumer.receive(msg, 1000) == ResultOk) {
-            consumer.acknowledge(msg);
-            
             {
                 lock_guard<mutex> lock(messageQueueMutex);
-                messageQueue->push(msg.getDataAsString());
+                messageQueue->push(Msg(msg, &consumer));
             }
         }
     }
 }
+
+void AckMsg(Msg msg) {
+    msg.consumer->acknowledge(msg.msg);
+}
+
+void NackMsg(Msg msg) {
+    msg.consumer->negativeAcknowledge(msg.msg);
+}
+
 
 void PrintProgressBar(int current, int total) {
     cout << "(" + to_string(current) + "/" + to_string(total) + ")" + "\r";

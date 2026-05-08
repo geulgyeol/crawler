@@ -13,11 +13,11 @@ const int DELAY_MILLI_T = 1000 / CRAWL_PER_SECOND_T;
 std::chrono::nanoseconds DELAY_NANOS_N = std::chrono::nanoseconds(1'000'000'000LL / CRAWL_PER_SECOND_N);
 std::chrono::nanoseconds DELAY_NANOS_T = std::chrono::nanoseconds(1'000'000'000LL / CRAWL_PER_SECOND_T);
 
-queue<string> messageQueue;
+queue<Msg> messageQueue;
 
 map<CURL*, struct curl_slist*> headersMap;
 
-CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& buffers, map<CURL*, string>& link_data, CURL* curl) {
+CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& buffers, map<CURL*, string>& link_data, map<CURL*, Msg>& msgs, CURL* curl, Msg msg) {
     if (link.empty()) return nullptr;
 
     size_t pos = link.find('/');
@@ -69,6 +69,7 @@ CURL* CreateHandle(CURLM* multi_handle, const string link, map<CURL*, string*>& 
     curl_multi_add_handle(multi_handle, eh);
     buffers[eh] = readBuffer;
     link_data[eh] = link;
+    msgs[eh] = msg;
 
     cout << "Handle Created in " + GetTakenTime(start) + "\n";
 
@@ -116,6 +117,7 @@ int main() {
 
     map<CURL*, string*> buffers;
     map<CURL*, string> link_data;
+    map<CURL*, Msg> msgs;
 
     thread linkFinderSubscribeThread(receiveMessages, consumer, &messageQueue);
     linkFinderSubscribeThread.detach();
@@ -124,6 +126,7 @@ int main() {
     int cnt = 0;
 
     map<string, string> bodies;
+    vector<Msg> processedMsgs;
 
     auto start = std::chrono::steady_clock::now();
 
@@ -136,13 +139,13 @@ int main() {
             auto now = clock::now();
 
             while ((int)buffers.size() < MAX_CONCURRENT_REQUESTS && now >= nextAdd) {
-                string message;
+                Msg msg;
                 bool has;
                 {
                     std::lock_guard<std::mutex> lock(messageQueueMutex);
                     has = !messageQueue.empty();
                     if (has) {
-                        message = std::move(messageQueue.front());
+                        msg = messageQueue.front();
                         messageQueue.pop();
                     }
                 }
@@ -150,6 +153,7 @@ int main() {
                     cout << "Queue is empty\n";
                     break;
                 }
+                string message = msg.message;
 
                 if (message.empty()) {
                     continue;
@@ -159,7 +163,7 @@ int main() {
 
                 auto current_delay = (link_to_process[0] == 'N') ? DELAY_NANOS_N : DELAY_NANOS_T;
 
-                CURL* eh = CreateHandle(multi_handle, link_to_process, buffers, link_data, curl);
+                CURL* eh = CreateHandle(multi_handle, link_to_process, buffers, link_data, msgs, curl, msg);
                 if (eh) {
                     nextAdd += current_delay;
                 }
@@ -180,13 +184,14 @@ int main() {
             Delay(100, "main");
         }
 
-        CURLMsg* msg;
+        CURLMsg* curlMsg;
         int msgs_left;
-        while ((msg = curl_multi_info_read(multi_handle, &msgs_left))) {
-            if (msg->msg == CURLMSG_DONE) {
+        while ((curlMsg = curl_multi_info_read(multi_handle, &msgs_left))) {
+            if (curlMsg->msg == CURLMSG_DONE) {
                 auto start_ = std::chrono::steady_clock::now();
 
-                CURL* eh = msg->easy_handle;
+                CURL* eh = curlMsg->easy_handle;
+                Msg msg = msgs[eh];
 
                 string* buffer = buffers[eh];
                 string link = link_data[eh];
@@ -195,58 +200,10 @@ int main() {
                 double total_time = 0.0;
                 curl_easy_getinfo(eh, CURLINFO_TOTAL_TIME, &total_time);
 
-                bool isSuccess = false;
-
-                if (msg->data.result == CURLE_OK && response_code < 400) {
+                if (curlMsg->data.result == CURLE_OK && response_code < 400) {
                     cout << "success: " + to_string(++cnt) + " " + GetTakenTime(start_) + " Taken: " + to_string(total_time) + "s for [" + link + "]\n";
-                    isSuccess = true;
-                }
-                else {
-                    cerr << "FAILED for [" + link + "] (Code: " + to_string(response_code) + "). Error: " + curl_easy_strerror(msg->data.result) + " " + GetTakenTime(start_) + " Taken: " + to_string(total_time) + "s\n";
-
-                    if (msg->data.result == 28) {
-                        vector<CURL*> failedHandles;
-                        vector<string> failedMessages;
-
-                        for (const auto& pair : link_data) {
-                            if (pair.second[0] == 'N') {
-                                {
-                                    lock_guard<mutex> lock(messageQueueMutex);
-                                    failedMessages.push_back(pair.second);
-                                }
-
-                                failedHandles.push_back(pair.first);
-                            }
-                        }
-
-                        delete buffer;
-                        for (int i = 0; i < failedHandles.size(); i++) {
-                            CURL* failedHandle = failedHandles[i];
-
-                            auto it = headersMap.find(failedHandle);
-                            if (it != headersMap.end()) {
-                                curl_slist_free_all(it->second);
-                                headersMap.erase(it);
-                            }
-
-                            buffers.erase(failedHandle);
-                            link_data.erase(failedHandle);
-                            curl_multi_remove_handle(multi_handle, failedHandle);
-                            curl_easy_cleanup(failedHandle);
-                        }
-
-                        SendMessages(contentProducer, failedMessages);
-                        Delay(NAVER_TIMEOUT_WAITING_TIME, "main");
-
-                        continue;
-                    }
-
-                    vector<string> v = { link };
-                    SendMessages(contentProducer, v);
-                    Delay(NAVER_TIMEOUT_WAITING_TIME, "main");
-                }
-
-                if (isSuccess) {
+                    
+                    bool added = false;
                     string Body;
                     Body.append("{\"body\":\"" + EscapeQuotes(*buffer) + "\",\"blog\":\"");
                     if (!link.empty() && link[0] == 'N') {
@@ -265,9 +222,58 @@ int main() {
                         html_storage_link.replace(pos, 1, " ");
                         if (CheckLinkNotVisited(curl, db_link, "posts")) {
                             bodies.insert({ html_storage_link.substr(1), Body });
+                            processedMsgs.push_back(msg);
+                            added = true;
+                        }
+                        else {
+                            AckMsg(msg);
                         }
                     }
+                    else {
+                        AckMsg(msg);
+                    }
                 }
+                else {
+                    cerr << "FAILED for [" + link + "] (Code: " + to_string(response_code) + "). Error: " + curl_easy_strerror(curlMsg->data.result) + " " + GetTakenTime(start_) + " Taken: " + to_string(total_time) + "s\n";
+
+                    if (curlMsg->data.result == 28) {
+
+                        vector<CURL*> failedHandles;
+
+                        for (const auto& pair : link_data) {
+                            if (pair.second[0] == 'N') {
+                                failedHandles.push_back(pair.first);
+                            }
+                        }
+
+                        //delete buffer;
+                        for (int i = 0; i < failedHandles.size(); i++) {
+                            CURL* failedHandle = failedHandles[i];
+
+                            auto it = headersMap.find(failedHandle);
+                            if (it != headersMap.end()) {
+                                curl_slist_free_all(it->second);
+                                headersMap.erase(it);
+                            }
+
+                            NackMsg(msgs[failedHandle]);
+                            msgs.erase(failedHandle);
+                            buffers.erase(failedHandle);
+                            link_data.erase(failedHandle);
+                            
+                            curl_multi_remove_handle(multi_handle, failedHandle);
+                            curl_easy_cleanup(failedHandle);
+                        }
+
+                        Delay(NAVER_TIMEOUT_WAITING_TIME, "main");
+
+                        continue;
+                    }
+
+                    NackMsg(msg);
+                    Delay(NAVER_TIMEOUT_WAITING_TIME, "main");
+                }
+
 
                 auto it = headersMap.find(eh);
                 if (it != headersMap.end()) {
@@ -278,6 +284,7 @@ int main() {
                 delete buffer;
                 buffers.erase(eh);
                 link_data.erase(eh);
+                msgs.erase(eh);
                 curl_multi_remove_handle(multi_handle, eh);
                 curl_easy_cleanup(eh);
             }
@@ -287,9 +294,15 @@ int main() {
 
         cout << to_string(bodies.size()) + " HTML Crawled in " + GetTakenTime(start) + "\n";
         start = std::chrono::steady_clock::now();
+
         thread postHTMLContentThread(PostHTMLContent, std::move(bodies));
         postHTMLContentThread.detach();
         bodies.clear();
+
+        for (int i = 0; i < processedMsgs.size(); i++) {
+            AckMsg(processedMsgs[i]);
+        }
+        processedMsgs.clear();
     }
 
     contentProducer.close();

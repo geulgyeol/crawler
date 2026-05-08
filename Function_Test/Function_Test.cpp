@@ -39,7 +39,7 @@ int main() {
     //SendMessages(producer, { "Nhaesung_88" });
 
     /*while (true) {
-        Message msg;
+        pulsar::Message msg;
         consumer.receive(msg);
         consumer.acknowledge(msg);
 
