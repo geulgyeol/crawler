@@ -11,7 +11,7 @@ const int CRAWL_PER_SECOND_T = CRAWL_PER_SECOND_MAP.at("LinkFinder_T");
 const int DELAY_MILLI_N = 1000 / CRAWL_PER_SECOND_N;
 const int DELAY_MILLI_T = 1000 / CRAWL_PER_SECOND_T;
 
-queue<string> messageQueue;
+queue<Msg> messageQueue;
 
 struct TistoryRequestData {
     string* buffer;
@@ -31,7 +31,6 @@ int main() {
 #endif
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    CURL* curl;
 
     Client client(PULSAR_SERVICE_URL, CreateClientConfig(LOG_LEVEL));
 
@@ -52,6 +51,8 @@ int main() {
 
     while (true) {
         bool is_empty;
+        bool ack = false;
+
         {
             lock_guard<mutex> lock(messageQueueMutex);
             is_empty = messageQueue.empty();
@@ -62,34 +63,38 @@ int main() {
             continue;
         }
 
-        string message;
+        Msg msg;
+        CURL* curl = nullptr;
+
+        ScopeGuard cleanupGuard = { [&]() {
+            if (curl) curl_easy_cleanup(curl);
+            if (ack) AckMsg(msg);
+            else NackMsg(msg);
+        }};
+
         {
             std::lock_guard<std::mutex> lock(messageQueueMutex);
-            message = messageQueue.front();
+            msg = messageQueue.front();
             messageQueue.pop();
         }
+        string message = msg.message;
 
         if (message.empty()) {
+            ack = true;
             continue;
         }
 
         string link = message;
 
-        vector<string*> buffers;
         string readBuffer;
         
         curl = curl_easy_init();
         if (curl) {
-            string link_t = link;
-            size_t pos = link_t.find('/');
-            if (pos != string::npos) {
-                link_t.replace(pos, 1, "%20");
-            }
-
             if (link[0] == 'N') {
                 string blogName = link.substr(1);
                 int collectCnt = 0;
                 int currentPage = 1;
+                vector<string> validPages;
 
                 set<string> foundPostIds;
                 bool duplicateFound = false;
@@ -102,7 +107,7 @@ int main() {
 
                     if (!IsAllowedByRobotsGeneral(url)) {
                         cout << "SKIP: Robots.txt denied access for [" + link + "] URL [" + url + "]\n";
-                        curl_easy_cleanup(curl);
+                        ack = true;
                         break;
                     }
 
@@ -113,18 +118,17 @@ int main() {
                     curl_slist_free_all(headers);
                     if (res != CURLE_OK) {
                         cerr << "curl_easy_perform() failed on page " + to_string(currentPage) + ": " + curl_easy_strerror(res) + "\n";
-                        curl_easy_cleanup(curl);
+                        ack = false;
                         break;
                     }
 
                     if (readBuffer.find("\"resultCode\":\"E\"") != string::npos) {
+                        ack = true;
                         break;
                     }
 
                     int lastIndex = readBuffer.find("tagQueryString");
                     int pagesFoundInThisCall = 0;
-
-                    vector<string> validPages;
 
                     while (true) {
                         int newIndex = readBuffer.find("logNo", lastIndex);
@@ -156,14 +160,17 @@ int main() {
                     cout << "Current Collect : " + to_string(collectCnt) + " (Page: " + to_string(currentPage) + ") " + GetTakenTime(start) + "\n";
 
                     if (duplicateFound || pagesFoundInThisCall == 0) {
+                        ack = true;
                         break;
                     }
 
-                    SendMessages(profileProducer, validPages);
-                    SendMessages(contentProducer, validPages);
-
                     currentPage++;
                     Delay(DELAY_MILLI_N, "main");
+                }
+
+                if (ack) {
+                    SendMessages(profileProducer, validPages);
+                    SendMessages(contentProducer, validPages);
                 }
 
                 cout << "\n";
@@ -176,8 +183,8 @@ int main() {
 
                 if (!IsAllowedByRobotsGeneral(url)) {
                     cout << "SKIP: Robots.txt denied access for [" + link + "] URL [" + url + "]\n";
+                    ack = true;
                     Delay(DELAY_MILLI_T, "main");
-                    curl_easy_cleanup(curl);
                     continue;
                 }
 
@@ -190,7 +197,7 @@ int main() {
                 if (res != CURLE_OK) {
                     string str_t(curl_easy_strerror(res));
                     cerr << "curl_easy_perform() failed: " + str_t + "\n";
-                    curl_easy_cleanup(curl);
+                    ack = false;
                     continue;
                 }
 
@@ -205,13 +212,15 @@ int main() {
                     catch (exception& e) {
                         string str_t(e.what());
                         cerr << "Failed to parse max post ID from RSS: " + str_t + "\n";
+                        ack = false;
                         continue;
                     }
                 }
 
                 if (maxIndex == 0) {
                     cout << "No post IDs found for [" + link + "]. " + GetTakenTime(start) + "\n";
-                    curl_easy_cleanup(curl);
+
+                    ack = true;
                     Delay(DELAY_MILLI_T, "main");
                     continue;
                 }
@@ -219,14 +228,13 @@ int main() {
                 CURLM* multi_handle = curl_multi_init();
                 if (!multi_handle) {
                     cerr << "Failed to initialize CURL multi handle\n";
-                    curl_easy_cleanup(curl);
+                    ack = false;
                     continue;
                 }
 
                 map<CURL*, unique_ptr<TistoryRequestData>> requests;
 
                 vector<string> validPages;
-                int validPageCnt = 0;
                 int emptyPageCnt = 0;
                 int currentIndex = maxIndex;
                 int completed = 0;
@@ -272,7 +280,10 @@ int main() {
                     if (running_handles > 0) {
                         int numfds = 0;
                         CURLMcode mc = curl_multi_wait(multi_handle, NULL, 0, 1, &numfds);
-                        if (mc != CURLM_OK) break;
+                        if (mc != CURLM_OK) {
+                            ack = false;
+                            break;
+                        }
 
                         curl_multi_perform(multi_handle, &running_handles);
 
@@ -294,13 +305,6 @@ int main() {
                                     if (htmlTitle != "TISTORY") {
                                         emptyPageCnt = 0;
                                         validPages.push_back("T" + link.substr(1) + "/" + to_string(raw_data_ptr->index));
-                                        validPageCnt++;
-
-                                        if (validPages.size() >= 100) {
-                                            SendMessages(profileProducer, validPages);
-                                            SendMessages(contentProducer, validPages);
-                                            validPages.clear();
-                                        }
                                     }
                                     else {
                                         emptyPageCnt++;
@@ -329,31 +333,22 @@ int main() {
                     }
 
                     if (currentIndex <= 0 && requests.empty()) {
+                        ack = true;
                         break;
                     }
                 }
 
-                cout << "\n# Valid Page Count : " + to_string(validPageCnt) + ", " + GetTakenTime(start) + "\n";
+                cout << "\n# Valid Page Count : " + to_string(validPages.size()) + ", " + GetTakenTime(start) + "\n";
                 curl_multi_cleanup(multi_handle);
 
-                SendMessages(profileProducer, validPages);
-                SendMessages(contentProducer, validPages);
+                if (ack) {
+                    SendMessages(profileProducer, validPages);
+                    SendMessages(contentProducer, validPages);
+                }
 
                 Delay(DELAY_MILLI_T, "main");
             }
             cout << "\n";
-        }
-
-        if (curl) {
-            curl_easy_cleanup(curl);
-        }
-
-        if (!buffers.empty()) {
-            for (int i = 0; i < buffers.size(); i++) {
-                if (buffers[i] != nullptr) {
-                    delete buffers[i];
-                }
-            }
         }
     }
 

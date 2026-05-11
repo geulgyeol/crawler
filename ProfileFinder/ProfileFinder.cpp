@@ -11,7 +11,7 @@ const int CRAWL_PER_SECOND_T = CRAWL_PER_SECOND_MAP.at("ProfileFinder_T");
 const int DELAY_MILLI_N = 1000 / CRAWL_PER_SECOND_N;
 const int DELAY_MILLI_T = 1000 / CRAWL_PER_SECOND_T;
 
-queue<string> messageQueue;
+queue<Msg> messageQueue;
 
 
 int main() {
@@ -28,7 +28,6 @@ int main() {
 #endif
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
-    CURL* curl;
 
     Client client(PULSAR_SERVICE_URL, CreateClientConfig(LOG_LEVEL));
 
@@ -45,6 +44,7 @@ int main() {
 
     while (true) {
         bool is_empty;
+        bool ack = false;
         {
             lock_guard<mutex> lock(messageQueueMutex);
             is_empty = messageQueue.empty();
@@ -55,15 +55,24 @@ int main() {
             continue;
         }
 
+        Msg msg;
+        CURL* curl;
 
-        string message;
+        ScopeGuard cleanupGuard = { [&]() {
+            if (curl) curl_easy_cleanup(curl);
+            if (ack) AckMsg(msg);
+            else NackMsg(msg);
+        } };
+
         {
             std::lock_guard<std::mutex> lock(messageQueueMutex);
-            message = messageQueue.front();
+            msg = messageQueue.front();
             messageQueue.pop();
         }
+        string message = msg.message;
 
         if (message.empty()) {
+            ack = true;
             continue;
         }
 
@@ -83,6 +92,7 @@ int main() {
 
                 if (!IsAllowedByRobotsGeneral(url)) {
                     cout << "SKIP: Robots.txt denied access for [" + link + "] URL [" + url + "]\n";
+                    ack = true;
                     Delay(DELAY_MILLI_N, "main");
                     continue;
                 }
@@ -95,6 +105,8 @@ int main() {
                 if (res != CURLE_OK) {
                     string str_t(curl_easy_strerror(res));
                     cerr << "curl_easy_perform() failed: " + str_t + "\n";
+                    ack = false;
+                    break;
                 }
 
                 regex sympathyBlogIdRegex(R"regex("domainIdOrBlogId":"(.*?)")regex");
@@ -116,6 +128,7 @@ int main() {
                 cout << "\n";
 
                 if (blogIds.empty()) {
+                    ack = true;
                     Delay(DELAY_MILLI_N, "main");
                     continue;
                 }
@@ -127,6 +140,9 @@ int main() {
                 }
 
                 SendMessages(userProducer, blogIds, registerChecker);
+
+                ack = true;
+
                 Delay(DELAY_MILLI_N, "main");
             }
             else if (link[0] == 'T') {
@@ -134,6 +150,7 @@ int main() {
 
                 if (!IsAllowedByRobotsGeneral(url)) {
                     cout << "SKIP: Robots.txt denied access for [" + link + "] URL [" + url + "]\n";
+                    ack = true;
                     Delay(DELAY_MILLI_T, "main");
                     continue;
                 }
@@ -146,6 +163,7 @@ int main() {
                 if (res != CURLE_OK) {
                     string str_t(curl_easy_strerror(res));
                     cerr << "curl_easy_perform() failed: " + str_t + "\n";
+                    ack = false;
                 }
 
                 regex commentBlogHomepageRegex("\"homepage\"\\s*:\\s*\"https://([^\"/]*)");
@@ -175,6 +193,7 @@ int main() {
                 cout << "\n";
 
                 if (blogHomepages.empty()) {
+                    ack = true;
                     Delay(DELAY_MILLI_T, "main");
                     continue;
                 }
@@ -186,14 +205,13 @@ int main() {
                 }
 
                 SendMessages(userProducer, blogHomepages, registerChecker);
+
+                ack = true;
+
                 Delay(DELAY_MILLI_T, "main");
             }
 
             cout << "\n";
-        }
-
-        if (curl) {
-            curl_easy_cleanup(curl);
         }
     }
 
