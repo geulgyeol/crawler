@@ -85,7 +85,9 @@ int main() {
 
             if (CheckLinkNotVisited(curl, profile, (topic == "user" ? "users" : "posts"))) {
                 registerChecker[i] = true;
-                RegisterLink(curl, profile, (topic == "user" ? "users" : "posts"));
+                if (topic == "user") {
+                    RegisterLink(curl, profile, "users");
+                }
             }
             else {
                 failed.push_back({ i, "Failed to Send (Already exist or Failed Connect)" });

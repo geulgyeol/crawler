@@ -619,7 +619,7 @@ bool RegisterLink(CURL* curl, const string link, const string type) {
     }
 
     string content = "{\"blog_platform\":\"" + platform + "\",\"user_id\":\"" + link.substr(1) + "\"}";
-    
+
     string url = config.LINK_KV_ENDPOINT + "/" + type;
     string readBuffer;
 
@@ -691,17 +691,17 @@ vector<bool> RegisterLinks(CURL* curl, vector<string> links, const string type) 
         string url = config.LINK_KV_ENDPOINT + "/" + type;
         string readBuffer;
 
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "POST");
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, content.c_str());
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, content.length());
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+        curl_easy_setopt(eh, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(eh, CURLOPT_CUSTOMREQUEST, "POST");
+        curl_easy_setopt(eh, CURLOPT_POSTFIELDS, content.c_str());
+        curl_easy_setopt(eh, CURLOPT_POSTFIELDSIZE, content.length());
+        curl_easy_setopt(eh, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(eh, CURLOPT_WRITEDATA, &readBuffer);
 
         struct curl_slist* headers = NULL;
         headers = curl_slist_append(headers, config.USER_AGENT.c_str());
         headers = curl_slist_append(headers, "Content-Type: application/json");
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        curl_easy_setopt(eh, CURLOPT_HTTPHEADER, headers);
 
         data->headers = headers;
 

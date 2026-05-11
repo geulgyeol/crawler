@@ -28,23 +28,37 @@ int main() {
     }
 
     Consumer consumer;
-    res = SubscribeConsumer(client, &consumer, "user");
+    res = SubscribeConsumer(client, &consumer, "content");
     if (res != ResultOk) {
         std::cerr << "Failed to Subscribe Consumer: " << res << std::endl;
         return 0;
     }
 
-    SendMessages(producer, {"Nhaesung_88", "N1_do_everything", "Tmungdenson"});
+    //SendMessages(producer, {"Nhaesung_88", "N1_do_everything", "Tmungdenson"});
 
     //SendMessages(producer, { "Nhaesung_88" });
 
-    /*while (true) {
+    map<string, bool> visited;
+    int cnt = 0;
+
+    while (true) {
         pulsar::Message msg;
         consumer.receive(msg);
         consumer.acknowledge(msg);
 
-        cout << msg.getDataAsString() << endl;
-    }*/
+        string message = msg.getDataAsString();
+
+        if (visited.find(message) != visited.end()) {
+            cout << message << endl;
+        }
+        else {
+            visited.insert({ message, true });
+        }
+
+        if (!(++cnt % 100)) {
+            cout << cnt << endl;
+        }
+    }
 
     Delay(2000, "aaa");
 

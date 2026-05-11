@@ -90,12 +90,6 @@ int main() {
         
         curl = curl_easy_init();
         if (curl) {
-            string link_t = link;
-            size_t pos = link_t.find('/');
-            if (pos != string::npos) {
-                link_t.replace(pos, 1, "%20");
-            }
-
             if (link[0] == 'N') {
                 string blogName = link.substr(1);
                 int collectCnt = 0;
@@ -286,7 +280,10 @@ int main() {
                     if (running_handles > 0) {
                         int numfds = 0;
                         CURLMcode mc = curl_multi_wait(multi_handle, NULL, 0, 1, &numfds);
-                        if (mc != CURLM_OK) break;
+                        if (mc != CURLM_OK) {
+                            ack = false;
+                            break;
+                        }
 
                         curl_multi_perform(multi_handle, &running_handles);
 
@@ -336,6 +333,7 @@ int main() {
                     }
 
                     if (currentIndex <= 0 && requests.empty()) {
+                        ack = true;
                         break;
                     }
                 }
@@ -343,10 +341,10 @@ int main() {
                 cout << "\n# Valid Page Count : " + to_string(validPages.size()) + ", " + GetTakenTime(start) + "\n";
                 curl_multi_cleanup(multi_handle);
 
-                SendMessages(profileProducer, validPages);
-                SendMessages(contentProducer, validPages);
-
-                ack = true;
+                if (ack) {
+                    SendMessages(profileProducer, validPages);
+                    SendMessages(contentProducer, validPages);
+                }
 
                 Delay(DELAY_MILLI_T, "main");
             }
