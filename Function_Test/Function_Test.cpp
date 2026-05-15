@@ -8,6 +8,24 @@ using namespace std;
 using namespace pulsar;
 
 
+string RemoveQuery(string& url) {
+    int index = url.find('?');
+    if (index == string::npos) return url;
+
+    return url.substr(0, index);
+}
+
+string RemoveProtocol(string& url) {
+    int index = url.find(':');
+    if (index == string::npos) return url;
+
+    string result = url.substr(index + 1);
+
+    while (result[0] == '/') result.erase(result.begin());
+
+    return result;
+}
+
 int main() {
     cin.tie(NULL);
     ios::sync_with_stdio(false);
@@ -17,40 +35,8 @@ int main() {
     SetConsoleCP(CP_UTF8);
 #endif
 
-    cout << "CRAWLER_NAME: " << CRAWLER_NAME << endl;
-    cout << "USER_AGENT: " << USER_AGENT << endl;
-    cout << "LINK_KV_ENDPOINT: " << LINK_KV_ENDPOINT << endl;
-    cout << "HTML_STORAGE_ENDPOINT: " << HTML_STORAGE_ENDPOINT << endl;
-    cout << "PULSAR_SERVICE_URL: " << PULSAR_SERVICE_URL << endl;
-    cout << "PULSAR_NAMESPACE: " << PULSAR_NAMESPACE << endl;
-    cout << "MAX_CONCURRENT_REQUESTS: " << MAX_CONCURRENT_REQUESTS << endl;
-    cout << "BODIES_THRESHOLD: " << BODIES_THRESHOLD << endl;
-    cout << "NAVER_TIMEOUT_WAITING_TIME: " << NAVER_TIMEOUT_WAITING_TIME << endl;
-    cout << "CONNECTION_TIMEOUT_SECONDS: " << CONNECTION_TIMEOUT_SECONDS << endl;
-    cout << "RESPONSE_TIMEOUT_SECONDS: " << RESPONSE_TIMEOUT_SECONDS << endl;
-    cout << "MAX_MESSAGE_QUEUE_SIZE: " << MAX_MESSAGE_QUEUE_SIZE << endl;
-    cout << "MAX_BATCHING_MESSAGE_COUNT: " << MAX_BATCHING_MESSAGE_COUNT << endl;
-    cout << "MAX_BATCHING_DELAY: " << MAX_BATCHING_DELAY << endl;
-    cout << "ROBOTS_CACHE_DURATION_SECONDS: " << ROBOTS_CACHE_DURATION_SECONDS << endl;
-    cout << "MAX_ROBOTS_CACHE_SIZE: " << MAX_ROBOTS_CACHE_SIZE << endl;
-    cout << "VERBOSE: " << VERBOSE << endl;
-    cout << "LOG_LEVEL: " << LOG_LEVEL << endl;
-
-    vector<string> CRAWL_PER_SECOND_MAP_KEYS = {
-        "LinkFinder_N",
-        "LinkFinder_T",
-        "ProfileFinder_N",
-        "ProfileFinder_T",
-        "HTMLCrawler_N",
-        "HTMLCrawler_T",
-        "ImageDownloader_N",
-        "ImageDownloader_T"
-    };
-
-    for (int i = 0; i < CRAWL_PER_SECOND_MAP_KEYS.size(); i++) {
-        cout << CRAWL_PER_SECOND_MAP_KEYS[i] << ": " << CRAWL_PER_SECOND_MAP[CRAWL_PER_SECOND_MAP_KEYS[i]] << endl;
-    }
-
+    string str = "https://naver.com/blog/iwannagohome?referer=school";
+    cout << RemoveProtocol(RemoveQuery(str));
 
 
 

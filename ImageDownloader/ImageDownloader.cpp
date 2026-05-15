@@ -33,8 +33,22 @@ string GetExtensions(string content_type) {
     return ".bin";
 }
 
-string RemoveProtocol(string url) {
-    
+string RemoveQuery(string& url) {
+    int index = url.find('?');
+    if (index == string::npos) return url;
+
+    return url.substr(0, index);
+}
+
+string RemoveProtocol(string& url) {
+    int index = url.find(':');
+    if (index == string::npos) return url;
+
+    string result = url.substr(index+1);
+
+    while (result[0] == '/') result.erase(result.begin());
+
+    return result;
 }
 
 int main() {
@@ -163,6 +177,9 @@ int main() {
         }
     }
 
+    consumer.close();
+
+    client.close();
 
     curl_global_cleanup();
 
