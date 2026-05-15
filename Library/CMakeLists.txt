@@ -15,7 +15,7 @@ target_include_directories(Library PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(Library PUBLIC
     unofficial::pulsar::pulsar
     CURL::libcurl
-    yaml-cpp
+    yaml-cpp::yaml-cpp
 )
 
 set_target_properties(Library PROPERTIES

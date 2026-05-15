@@ -8,14 +8,14 @@ using namespace std;
 using namespace pulsar;
 
 
-string RemoveQuery(string& url) {
+string RemoveQuery(const string& url) {
     int index = url.find('?');
     if (index == string::npos) return url;
 
     return url.substr(0, index);
 }
 
-string RemoveProtocol(string& url) {
+string RemoveProtocol(const string& url) {
     int index = url.find(':');
     if (index == string::npos) return url;
 
