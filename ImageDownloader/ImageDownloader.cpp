@@ -11,8 +11,31 @@ const int CRAWL_PER_SECOND_T = CRAWL_PER_SECOND_MAP.at("ImageDownloader_T");
 const int DELAY_MILLI_N = 1000 / CRAWL_PER_SECOND_N;
 const int DELAY_MILLI_T = 1000 / CRAWL_PER_SECOND_T;
 
-//queue<Msg> messageQueue;
-queue<string> messageQueue;
+queue<Msg> messageQueue;
+
+size_t WriteData(void* ptr, size_t size, size_t nmemb, FILE* stream) {
+    size_t written = fwrite(ptr, size, nmemb, stream);
+    return written;
+}
+
+string GetExtensions(string content_type) {
+    static map<string, string> mime_map = {
+        {"image/jpeg", ".jpg"},
+        {"image/png", ".png"},
+        {"image/gif", ".gif"},
+        {"image/webp", ".webp"},
+        {"image/x-icon", ".ico"}
+    };
+
+    for (auto const& [mime, ext] : mime_map) {
+        if (content_type.find(mime) != string::npos) return ext;
+    }
+    return ".bin";
+}
+
+string RemoveProtocol(string url) {
+    
+}
 
 int main() {
     cin.tie(NULL);
@@ -27,37 +50,21 @@ int main() {
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
-    messageQueue = {};
-
-    while (true) {
-        if (messageQueue.empty()) {
-            cout << "Queue Empty\n";
-            break;
-        }
-
-        string message = messageQueue.front();
-        messageQueue.pop();
-
-
-    }
-
-    /*Client client(PULSAR_SERVICE_URL, CreateClientConfig(LOG_LEVEL));
-
-    Producer profileProducer;
-    Result res1 = CreateProducer(client, &profileProducer, "profile");
-
-    Producer contentProducer;
-    Result res2 = CreateProducer(client, &contentProducer, "content");
+    Client client(PULSAR_SERVICE_URL, CreateClientConfig(LOG_LEVEL));
 
     Consumer consumer;
-    Result res3 = SubscribeConsumer(client, &consumer, "user");
+    Result res1 = SubscribeConsumer(client, &consumer, "image");
 
-    if (res1 != ResultOk || res2 != ResultOk || res3 != ResultOk) return 0;
+    if (res1 != ResultOk) return 0;
 
-    thread linkFinderSubscribeThread(receiveMessages, consumer, &messageQueue);
-    linkFinderSubscribeThread.detach();*/
+    thread ImageDownloaderSubscribeThread(receiveMessages, consumer, &messageQueue);
+    ImageDownloaderSubscribeThread.detach();
 
-    /*while (true) {
+    CURL* curl;
+    FILE* fp;
+    CURLcode res;
+
+    while (true) {
         bool is_empty;
         bool ack = false;
 
@@ -98,21 +105,64 @@ int main() {
 
         curl = curl_easy_init();
         if (curl) {
-            if (link[0] == 'N') {
-                
+            string tempFileName = "DownloadedImages/tmp";
+
+            fp = fopen(tempFileName.c_str(), "wb");
+            if (fp == NULL) {
+                std::cerr << "Can't Open File: " << tempFileName << std::endl;
+                curl_easy_cleanup(curl);
+                ack = false;
+                return 0;
             }
-            else if (link[0] == 'T') {
-                
+
+            string readBuffer;
+            struct curl_slist* headers = SetCURL(curl, &readBuffer, link);
+
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteData);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+            curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+
+            res = curl_easy_perform(curl);
+
+            curl_slist_free_all(headers);
+            fclose(fp);
+
+            if (res != CURLE_OK) {
+                std::cerr << "Download Failed: " << curl_easy_strerror(res) << std::endl;
+                remove(tempFileName.c_str());
+                ack = false;
+                continue;
             }
-            cout << "\n";
+
+            char* ct = NULL;
+            curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &ct);
+
+            string finalExt = ".bin";
+            if (ct) {
+                finalExt = GetExtensions(ct);
+            }
+
+            string finalFileName = "DownloadedImages/image" + finalExt;
+
+            if (rename(tempFileName.c_str(), finalFileName.c_str())) {
+                std::cerr << "Rename Failed: " << tempFileName << " to " << finalFileName << std::endl;
+                remove(tempFileName.c_str());
+                ack = false;
+                continue;
+            }
+
+            std::cout << "Download Success: " << finalFileName << std::endl;
+
+            // 업로드하는 코드
+
+            remove(finalFileName.c_str());
+
+            ack = true;
+            curl_easy_cleanup(curl);
         }
-    }*/
+    }
 
-    /*profileProducer.close();
-    contentProducer.close();
-    consumer.close();
-
-    client.close();*/
 
     curl_global_cleanup();
 
