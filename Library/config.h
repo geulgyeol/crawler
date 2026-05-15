@@ -4,12 +4,15 @@
 #include <string>
 #include <map>
 #include <pulsar/Client.h>
+#include <yaml-cpp/yaml.h>
 
 using namespace std;
 
 class Config {
 public:
 	Config();
+
+	const YAML::Node config;
 
 	const string CRAWLER_NAME;							// Crawler Name
 
@@ -27,8 +30,8 @@ public:
 
 	const int NAVER_TIMEOUT_WAITING_TIME;				// Waiting Time When Naver Blog Timeouted
 
-	const long CONNECTION_TIMEOUT_SECONDS;				// Connection Timeout Seconds
-	const long RESPONSE_TIMEOUT_SECONDS;				// Response Timeout Seconds
+	const int CONNECTION_TIMEOUT_SECONDS;				// Connection Timeout Seconds
+	const int RESPONSE_TIMEOUT_SECONDS;					// Response Timeout Seconds
 
 	const int MAX_MESSAGE_QUEUE_SIZE;					// 메세지 큐 최대 크기
 

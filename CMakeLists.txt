@@ -8,11 +8,13 @@ endif()
 
 find_package(unofficial-pulsar REQUIRED)
 find_package(CURL REQUIRED)
+find_package(yaml-cpp CONFIG REQUIRED)
 
 add_subdirectory ("Library")
 add_subdirectory ("LinkFinder")
 add_subdirectory ("ProfileFinder")
 add_subdirectory ("HTMLCrawler")
+add_subdirectory ("ImageDownloader")
 add_subdirectory ("MessageSender")
 add_subdirectory ("Function_Test")
 add_subdirectory ("RePostOnQueue")
