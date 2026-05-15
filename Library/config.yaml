@@ -1,0 +1,39 @@
+CRAWLER_NAME: "geulgyeol-crawler"
+USER_AGENT: 
+    prefix: "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:146.0; compatible; "
+    suffix: "/2.0; +https://github.com/geulgyeol) Gecko/20100101 Firefox/145.0"
+
+LINK_KV_ENDPOINT: "localhost:8082"                                    # link-kv.default.svc.cluster.local
+HTML_STORAGE_ENDPOINT: "localhost:8081"                               # html-precompressor.default.svc.cluster.local
+PULSAR_SERVICE_URL: "pulsar+ssl://pulsar.tail372bfc.ts.net:6651"      # pulsar+ssl://pulsar.tail372bfc.ts.net:6651, pulsar://localhost:6650
+PULSAR_NAMESPACE: "persistent://public/default/"
+
+MAX_CONCURRENT_REQUESTS: 10
+BODIES_THRESHOLD: 100
+
+NAVER_TIMEOUT_WAITING_TIME: 60000
+
+CONNECTION_TIMEOUT_SECONDS: 30
+RESPONSE_TIMEOUT_SECONDS: 30
+
+MAX_MESSAGE_QUEUE_SIZE: 100
+
+MAX_BATCHING_MESSAGE_COUNT: 100
+MAX_BATCHING_DELAY: 1000
+
+ROBOTS_CACHE_DURATION_SECONDS: 3600
+MAX_ROBOTS_CACHE_SIZE: 100
+
+VERBOSE: false
+
+LOG_LEVEL: "ERROR"                                                  # INFO, DEBUG, WARN, ERROR
+
+CRAWL_PER_SECOND_MAP:
+    LinkFinder_N: 3
+    LinkFinder_T: 25
+    ProfileFinder_N: 4
+    ProfileFinder_T: 6
+    HTMLCrawler_N: 15
+    HTMLCrawler_T: 25
+    ImageDownloader_N: 5
+    ImageDownloader_T: 5
