@@ -1,4 +1,4 @@
-#include "../Library/Library.cpp"
+﻿#include "../Library/Library.cpp"
 
 #ifdef _WIN32
 #include <windows.h>

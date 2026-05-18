@@ -286,6 +286,10 @@ Result CreateProducer(Client client, Producer* producer, string topic) {
 Result SubscribeConsumer(Client client, Consumer* consumer, string topic) {
     ConsumerConfiguration consumerConfig;
     consumerConfig.setConsumerType(pulsar::ConsumerType::ConsumerShared);
+    consumerConfig.setAckGroupingMaxSize(0);
+    consumerConfig.setAckGroupingTimeMs(0);
+    consumerConfig.setUnAckedMessagesTimeoutMs(0);
+    consumerConfig.setReceiverQueueSize(1);
 
     Result res = client.subscribe(PULSAR_NAMESPACE + topic, topic + "-sub", consumerConfig, *consumer);
 
@@ -342,6 +346,7 @@ void receiveMessages(Consumer consumer, queue<Msg>* messageQueue) {
 
 void AckMsg(Msg msg) {
     msg.consumer->acknowledge(msg.msg);
+    cout << "aa\n";
     //cout << "ACK: " << msg.message << "\n";
 }
 

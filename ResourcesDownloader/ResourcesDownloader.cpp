@@ -1,10 +1,11 @@
-#include "../Library/Library.cpp"
+﻿#include "../Library/Library.cpp"
 
 #ifdef _WIN32
 #include <windows.h>
 #endif
 
 using namespace std;
+namespace fs = filesystem;
 
 const int CRAWL_PER_SECOND_N = CRAWL_PER_SECOND_MAP.at("ImageDownloader_N");
 const int CRAWL_PER_SECOND_T = CRAWL_PER_SECOND_MAP.at("ImageDownloader_T");
@@ -78,6 +79,8 @@ int main() {
     FILE* fp;
     CURLcode res;
 
+    int nnnn = 0;
+
     while (true) {
         bool is_empty;
         bool ack = false;
@@ -92,17 +95,23 @@ int main() {
             continue;
         }
 
+        cout << "queue size: " << messageQueue.size() << endl;
+
         Msg msg;
         CURL* curl = nullptr;
 
         ScopeGuard cleanupGuard = { [&]() {
             if (curl) curl_easy_cleanup(curl);
-            if (ack) AckMsg(msg);
-            else NackMsg(msg);
+            if (ack) {
+                AckMsg(msg);
+            }
+            else {
+                NackMsg(msg);
+            }
         } };
 
         {
-            std::lock_guard<std::mutex> lock(messageQueueMutex);
+            lock_guard<mutex> lock(messageQueueMutex);
             msg = messageQueue.front();
             messageQueue.pop();
         }
@@ -119,11 +128,21 @@ int main() {
 
         curl = curl_easy_init();
         if (curl) {
-            string tempFileName = "DownloadedImages/tmp";
+            string folderName = "DownloadedImages";
+            string tempFileName = folderName + "/tmp";
+
+            if (!fs::exists(folderName)) {
+                if (fs::create_directory(folderName)) {
+                    cout << "폴더 생성됨: " << folderName << endl;
+                }
+                else {
+                    cout << "폴더 생성 실패" << endl;
+                }
+            }
 
             fp = fopen(tempFileName.c_str(), "wb");
             if (fp == NULL) {
-                std::cerr << "Can't Open File: " << tempFileName << std::endl;
+                cerr << "Can't Open File: " << tempFileName << endl;
                 curl_easy_cleanup(curl);
                 ack = false;
                 return 0;
@@ -143,7 +162,7 @@ int main() {
             fclose(fp);
 
             if (res != CURLE_OK) {
-                std::cerr << "Download Failed: " << curl_easy_strerror(res) << std::endl;
+                cerr << "Download Failed: " << curl_easy_strerror(res) << endl;
                 remove(tempFileName.c_str());
                 ack = false;
                 continue;
@@ -156,24 +175,34 @@ int main() {
             if (ct) {
                 finalExt = GetExtensions(ct);
             }
+            else {
+                remove(tempFileName.c_str());
+                ack = true;
+                continue;
+            }
 
-            string finalFileName = "DownloadedImages/image" + finalExt;
+            if (finalExt == ".bin") {
+                remove(tempFileName.c_str());
+                ack = true;
+                continue;
+            }
+
+            string finalFileName = "DownloadedImages/image" + to_string(nnnn++) + finalExt;
 
             if (rename(tempFileName.c_str(), finalFileName.c_str())) {
-                std::cerr << "Rename Failed: " << tempFileName << " to " << finalFileName << std::endl;
+                cerr << "Rename Failed: " << tempFileName << " to " << finalFileName << endl;
                 remove(tempFileName.c_str());
                 ack = false;
                 continue;
             }
 
-            std::cout << "Download Success: " << finalFileName << std::endl;
+            cout << "Download Success: " << finalFileName << ", type is:" << ct << ", message is: " << link << endl;
 
-            // ���ε��ϴ� �ڵ�
+            // 업로드하는 코드
 
-            remove(finalFileName.c_str());
+            //remove(finalFileName.c_str());
 
             ack = true;
-            curl_easy_cleanup(curl);
         }
     }
 

@@ -1,4 +1,4 @@
-#include "../Library/Library.cpp"
+﻿#include "../Library/Library.cpp"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -40,7 +40,7 @@ int main() {
 
 
 
-    /*Client client(PULSAR_SERVICE_URL, CreateClientConfig(LOG_LEVEL));
+    Client client(PULSAR_SERVICE_URL, CreateClientConfig(LOG_LEVEL));
 
     Producer producer;
     Result res = CreateProducer(client, &producer, "user");
@@ -51,18 +51,16 @@ int main() {
     }
 
     Consumer consumer;
-    res = SubscribeConsumer(client, &consumer, "content");
+    res = SubscribeConsumer(client, &consumer, "image");
     if (res != ResultOk) {
         std::cerr << "Failed to Subscribe Consumer: " << res << std::endl;
         return 0;
-    }*/
+    }
 
     //SendMessages(producer, {"Nhaesung_88", "N1_do_everything", "Tmungdenson"});
 
     //SendMessages(producer, { "Nhaesung_88" });
 
-    /*map<string, bool> visited;
-    int cnt = 0;
 
     while (true) {
         pulsar::Message msg;
@@ -71,21 +69,12 @@ int main() {
 
         string message = msg.getDataAsString();
 
-        if (visited.find(message) != visited.end()) {
-            cout << message << endl;
-        }
-        else {
-            visited.insert({ message, true });
-        }
-
-        if (!(++cnt % 100)) {
-            cout << cnt << endl;
-        }
+        cout << message << endl << endl;
     }
 
     Delay(2000, "aaa");
 
-    client.close();*/
+    client.close();
 
 
     /*CURL* curl;

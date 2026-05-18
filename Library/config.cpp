@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 #include "config.h"
 #include <string>
 #include <filesystem>
@@ -21,24 +21,24 @@ static YAML::Node LoadConfig() {
 
 Config::Config() :
     config(LoadConfig()),
-    CRAWLER_NAME(config["CRAWLER_NAME"].as<string>()),
-    USER_AGENT(config["USER_AGENT"]["prefix"].as<string>() + CRAWLER_NAME + config["USER_AGENT"]["suffix"].as<string>()),
-    LINK_KV_ENDPOINT(config["LINK_KV_ENDPOINT"].as<string>()),
-    HTML_STORAGE_ENDPOINT(config["HTML_STORAGE_ENDPOINT"].as<string>()),
-    PULSAR_SERVICE_URL(config["PULSAR_SERVICE_URL"].as<string>()),
-    PULSAR_NAMESPACE(config["PULSAR_NAMESPACE"].as<string>()),
-    MAX_CONCURRENT_REQUESTS(config["MAX_CONCURRENT_REQUESTS"].as<int>()),
-    BODIES_THRESHOLD(config["BODIES_THRESHOLD"].as<int>()),
-    NAVER_TIMEOUT_WAITING_TIME(config["NAVER_TIMEOUT_WAITING_TIME"].as<int>()),
-    MAX_MESSAGE_QUEUE_SIZE(config["MAX_MESSAGE_QUEUE_SIZE"].as<int>()),
-    MAX_BATCHING_MESSAGE_COUNT(config["MAX_BATCHING_MESSAGE_COUNT"].as<int>()),
-    MAX_BATCHING_DELAY(config["MAX_BATCHING_DELAY"].as<int>()),
-    ROBOTS_CACHE_DURATION_SECONDS(config["ROBOTS_CACHE_DURATION_SECONDS"].as<int>()),
-    MAX_ROBOTS_CACHE_SIZE(config["MAX_ROBOTS_CACHE_SIZE"].as<int>()),
-    CONNECTION_TIMEOUT_SECONDS(config["CONNECTION_TIMEOUT_SECONDS"].as<int>()),
-    RESPONSE_TIMEOUT_SECONDS(config["RESPONSE_TIMEOUT_SECONDS"].as<int>()),
-    VERBOSE(config["VERBOSE"].as<bool>()),
-    LOG_LEVEL(tologlevel(config["LOG_LEVEL"].as<string>()))
+    CRAWLER_NAME(config["crawler_name"].as<string>()),
+    USER_AGENT(config["user_agent"]["prefix"].as<string>() + CRAWLER_NAME + config["user_agent"]["suffix"].as<string>()),
+    LINK_KV_ENDPOINT(config["link_kv_endpoint"].as<string>()),
+    HTML_STORAGE_ENDPOINT(config["html_storage_endpoint"].as<string>()),
+    PULSAR_SERVICE_URL(config["pulsar_service_url"].as<string>()),
+    PULSAR_NAMESPACE(config["pulsar_namespace"].as<string>()),
+    MAX_CONCURRENT_REQUESTS(config["max_concurrent_requests"].as<int>()),
+    BODIES_THRESHOLD(config["bodies_threshold"].as<int>()),
+    NAVER_TIMEOUT_WAITING_TIME(config["naver_timeout_waiting_time"].as<int>()),
+    MAX_MESSAGE_QUEUE_SIZE(config["max_message_queue_size"].as<int>()),
+    MAX_BATCHING_MESSAGE_COUNT(config["max_batching_message_count"].as<int>()),
+    MAX_BATCHING_DELAY(config["max_batching_delay"].as<int>()),
+    ROBOTS_CACHE_DURATION_SECONDS(config["robots_cache_duration_seconds"].as<int>()),
+    MAX_ROBOTS_CACHE_SIZE(config["max_robots_cache_size"].as<int>()),
+    CONNECTION_TIMEOUT_SECONDS(config["connecting_timeout_seconds"].as<int>()),
+    RESPONSE_TIMEOUT_SECONDS(config["response_timeout_seconds"].as<int>()),
+    VERBOSE(config["verbose"].as<bool>()),
+    LOG_LEVEL(tologlevel(config["log_level"].as<string>()))
 {
     vector<string> CRAWL_PER_SECOND_MAP_KEYS = {
         "LinkFinder_N",
@@ -52,6 +52,6 @@ Config::Config() :
     };
 
     for (int i = 0; i < CRAWL_PER_SECOND_MAP_KEYS.size(); i++) {
-        CRAWL_PER_SECOND_MAP.insert({CRAWL_PER_SECOND_MAP_KEYS[i], config["CRAWL_PER_SECOND_MAP"][CRAWL_PER_SECOND_MAP_KEYS[i]].as<int>()});
+        CRAWL_PER_SECOND_MAP.insert({CRAWL_PER_SECOND_MAP_KEYS[i], config["crawl_per_second_map"][CRAWL_PER_SECOND_MAP_KEYS[i]].as<int>()});
     }
 }
